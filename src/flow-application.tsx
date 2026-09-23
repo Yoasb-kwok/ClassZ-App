@@ -82,10 +82,11 @@ export function createInitialFlowAppState(): FlowAppState {
     bookings: [],
     students: [
       { id: "s1", name: "Charlie Wong", parent: "Wong Ka Yan", phone: "91234567" },
+      { id: "s4", name: "Joseph Wong", parent: "Wong Ka Yan", phone: "91234567" },
       { id: "s2", name: "Sophie Chan", parent: "Chan Yuki", phone: "93445566" },
       { id: "s3", name: "Leo Ng", parent: "Ng Ka Ho", phone: "95556677" },
     ],
-    learningRecords: { s1: 2, s2: 1, s3: 0 },
+    learningRecords: { s1: 2, s2: 1, s3: 0, s4: 0 },
     selectedStudentId: "s1",
     generatedCompanions: {},
   }

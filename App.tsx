@@ -16,6 +16,7 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -36,6 +37,7 @@ import {
   type FigmaFlowItem,
 } from "./src/figma-flow"
 import { FIGMA_ASSETS } from "./src/figma-asset-urls"
+import { PAYMENT_ICONS } from "./src/payment-svgs"
 import { createInitialFlowAppState, FlowApplicationSurface, type FlowAppState } from "./src/flow-application"
 import { HOME_BANNER, HOME_PASSPORT_IMAGE, HOME_RECOMMEND_IMAGES, HOME_TRENDING_IMAGES, NAV_ICONS, SEARCH_BANNER_CENTRE, SEARCH_BANNER_PARENT, SEARCH_CATEGORY_COLORS, SEARCH_CATEGORY_IMAGES } from "./src/home-assets"
 import { HOME_CATEGORY_SVGS } from "./src/home-category-svgs"
@@ -78,7 +80,9 @@ type RootStackParamList = {
   MemberProfileApp: { memberId: MemberProfileId }
   ProgramListApp: undefined
   ClassOptionApp: undefined
-  ReservationApp: undefined
+  ReservationApp: { schedule?: ClassScheduleOption } | undefined
+  SelectChildApp: undefined
+  PromoteCodeApp: undefined
   LearningRecordsApp: undefined
   CompanionApp: undefined
   InboxApp: undefined
@@ -1148,19 +1152,68 @@ type LessonDate = {
 
 const LESSON_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const
 const LESSON_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const
-// 8 lessons roughly every 5 days across the option date range
-const LESSON_DATE_OFFSETS = [0, 5, 10, 15, 20, 25, 30, 36] as const
+const DESIGN_LESSON_DATES = [
+  { month: 9, day: 23, time: "4:00PM - 5:00PM" },
+  { month: 9, day: 26, time: "4:00PM - 5:00PM" },
+  { month: 9, day: 30, time: "4:00PM - 5:00PM" },
+  { month: 10, day: 2, time: "4:00PM - 5:00PM" },
+  { month: 10, day: 6, time: "4:00PM - 5:00PM" },
+  { month: 10, day: 9, time: "4:00PM - 5:00PM" },
+  { month: 10, day: 13, time: "4:00PM - 5:00PM" },
+  { month: 10, day: 28, time: "2:00PM - 3:00PM" },
+] as const
 
-function buildLessonDates(startDay: number): LessonDate[] {
-  return LESSON_DATE_OFFSETS.map((offset, index) => {
-    const date = new Date(2026, 9, startDay + offset)
+function buildLessonDates(dayOffset: number): LessonDate[] {
+  return DESIGN_LESSON_DATES.map((item, index) => {
+    const date = new Date(2026, item.month, item.day + dayOffset)
     return {
       lesson: index + 1,
       dateLabel: `${LESSON_MONTHS[date.getMonth()]} ${date.getDate()}`,
       weekday: LESSON_WEEKDAYS[date.getDay()],
-      time: "4:30 PM",
+      time: item.time,
     }
   })
+}
+
+function buildProgramSchedule(
+  program: { id: string; price: number },
+  dayOffset: number,
+  dateRange: string,
+  originalPrice: number | null,
+  spotsLeft: number,
+  goingCount: number,
+): ClassScheduleOption {
+  return {
+    id: `${program.id}-${dateRange}`,
+    lessonCount: 8,
+    dateRange,
+    originalPrice,
+    price: program.price,
+    spotsLeft,
+    goingCount,
+    language: "Cantonese",
+    address: "Shop 1B, Class Mall, Central, Hong Kong",
+    coachName: "Athena Yeung",
+    lessonDates: buildLessonDates(dayOffset),
+  }
+}
+
+function LessonDateRows({ dates }: { dates: LessonDate[] }) {
+  return (
+    <>
+      {dates.map((lessonDate) => (
+        <View key={lessonDate.lesson} style={styles.classOptionLessonRow}>
+          <Text style={styles.classOptionLessonNumber}>{lessonDate.lesson}</Text>
+          <View style={styles.classOptionLessonCopy}>
+            <Text style={styles.classOptionLessonDate}>
+              {lessonDate.dateLabel}, {lessonDate.weekday}
+            </Text>
+            <Text style={styles.classOptionLessonTime}>{lessonDate.time}</Text>
+          </View>
+        </View>
+      ))}
+    </>
+  )
 }
 
 function formatAmount(value: number): string {
@@ -1185,32 +1238,8 @@ function ClassOptionScreen({
     FIGMA_ASSETS.reservation.host,
   ]
   const options: ClassScheduleOption[] = [
-    {
-      id: `${active.id}-oct-23`,
-      lessonCount: 8,
-      dateRange: "Oct 23 - Nov 28",
-      originalPrice: 399,
-      price: active.price,
-      spotsLeft: 4,
-      goingCount: 3,
-      language: "Cantonese",
-      address: "Shop 1B, Class Mall, Central, Hong Kong",
-      coachName: "Athena Yeung",
-      lessonDates: buildLessonDates(23),
-    },
-    {
-      id: `${active.id}-oct-25`,
-      lessonCount: 8,
-      dateRange: "Oct 25 - Nov 30",
-      originalPrice: null,
-      price: active.price,
-      spotsLeft: 6,
-      goingCount: 5,
-      language: "Cantonese",
-      address: "Shop 1B, Class Mall, Central, Hong Kong",
-      coachName: "Athena Yeung",
-      lessonDates: buildLessonDates(25),
-    },
+    buildProgramSchedule(active, 0, "Oct 23 - Nov 28", 399, 4, 3),
+    buildProgramSchedule(active, 2, "Oct 25 - Nov 30", null, 6, 5),
   ]
 
   const toggleOptionExpanded = (optionId: string) => {
@@ -1253,17 +1282,10 @@ function ClassOptionScreen({
         </Text>
         <View style={styles.classOptionDivider} />
 
-        {options.map((option) => (
-          <Pressable
-            key={option.id}
-            accessibilityRole="button"
-            accessibilityLabel={`Select ${option.lessonCount} lessons starting ${option.dateRange}`}
-            style={styles.classOptionCard}
-            onPress={() => {
-              setFlowAppState((prev) => ({ ...prev, selectedProgramId: active.id }))
-              navigation.navigate("ReservationApp")
-            }}
-          >
+        {options.map((option) => {
+          const datesExpanded = expandedOptionIds.includes(option.id)
+          return (
+          <View key={option.id} style={styles.classOptionCard}>
             <Text style={styles.classOptionScheduleTitle}>
               {option.lessonCount} lessons · {option.dateRange}
             </Text>
@@ -1314,61 +1336,44 @@ function ClassOptionScreen({
               </View>
             </View>
 
-            {expandedOptionIds.includes(option.id) ? (
+            {datesExpanded ? (
               <>
                 <View style={styles.classOptionCardDivider} />
                 <View style={styles.classOptionLessonList}>
-                  {option.lessonDates.map((lessonDate, index) => (
-                    <View
-                      key={lessonDate.lesson}
-                      style={[
-                        styles.classOptionLessonRow,
-                        index < option.lessonDates.length - 1
-                          ? styles.classOptionLessonRowDivider
-                          : null,
-                      ]}
-                    >
-                      <Text style={styles.classOptionLessonNumber}>Lesson {lessonDate.lesson}</Text>
-                      <Text style={styles.classOptionLessonDate}>
-                        {lessonDate.dateLabel} · {lessonDate.weekday}
-                      </Text>
-                      <Text style={styles.classOptionLessonTime}>{lessonDate.time}</Text>
-                    </View>
-                  ))}
+                  <LessonDateRows dates={option.lessonDates} />
                 </View>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Reserve ${option.lessonCount} lessons starting ${option.dateRange}`}
+                  accessibilityLabel={`Enroll in ${option.lessonCount} lessons starting ${option.dateRange}`}
                   style={styles.classOptionReserveButton}
-                  onPress={(event) => {
-                    event.stopPropagation()
+                  onPress={() => {
                     setFlowAppState((prev) => ({ ...prev, selectedProgramId: active.id }))
-                    navigation.navigate("ReservationApp")
+                    navigation.navigate("ReservationApp", { schedule: option })
                   }}
                 >
-                  <Text style={styles.classOptionReserveButtonText}>Reserve</Text>
+                  <Text style={styles.classOptionReserveButtonText}>Enroll</Text>
                 </Pressable>
               </>
             ) : null}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={expandedOptionIds.includes(option.id) ? "Hide full dates" : "View full dates"}
-              accessibilityState={{ expanded: expandedOptionIds.includes(option.id) }}
+              accessibilityLabel={datesExpanded ? "Hide full dates" : "View full dates"}
+              accessibilityState={{ expanded: datesExpanded }}
               style={styles.classOptionDatesRow}
-              onPress={(event) => {
-                event.stopPropagation()
-                toggleOptionExpanded(option.id)
-              }}
+              onPress={() => toggleOptionExpanded(option.id)}
             >
-              <Text style={styles.classOptionDatesText}>View full dates</Text>
+              <Text style={styles.classOptionDatesText}>
+                {datesExpanded ? "Hide full dates" : "View full dates"}
+              </Text>
               <Feather
-                name={expandedOptionIds.includes(option.id) ? "chevron-up" : "chevron-down"}
+                name={datesExpanded ? "chevron-up" : "chevron-down"}
                 size={14}
                 color="#6B6B6B"
               />
             </Pressable>
-          </Pressable>
-        ))}
+          </View>
+          )
+        })}
       </ScrollView>
     </SafeAreaView>
   )
@@ -1651,6 +1656,293 @@ function ProfileScreen({
 
 function ReservationAppScreen({
   navigation,
+  route,
+  flowAppState,
+  setFlowAppState,
+}: {
+  navigation: any
+  route: { params?: { schedule?: ClassScheduleOption } }
+  flowAppState: FlowAppState
+  setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
+}) {
+  const active = flowAppState.programs.find((p) => p.id === flowAppState.selectedProgramId) || flowAppState.programs[0]
+  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || flowAppState.centres[0]
+  const student = flowAppState.students.find((item) => item.id === flowAppState.selectedStudentId) || flowAppState.students[0]
+  const schedule = route.params?.schedule ?? buildProgramSchedule(
+    active,
+    0,
+    "Oct 23 - Nov 28",
+    active.price === 299 ? 399 : null,
+    4,
+    3,
+  )
+  const [datesExpanded, setDatesExpanded] = useState(false)
+  const lessonCount = schedule.lessonCount
+  const lessonTotal = schedule.price * lessonCount
+  const limitedDiscount = schedule.originalPrice ? (schedule.originalPrice - schedule.price) * lessonCount : 0
+  const platformFee = 5
+  const promoteDiscount = flowAppState.couponCode.trim() ? 15 : 0
+  const total = (schedule.originalPrice ?? schedule.price) * lessonCount + platformFee - promoteDiscount
+  const attendeeAvatars = [
+    FIGMA_ASSETS.reservation.host,
+    FIGMA_ASSETS.reservation.coach,
+    FIGMA_ASSETS.reservation.child,
+  ]
+
+  const appliedPromoteCode = flowAppState.couponCode.trim()
+
+  return (
+    <SafeAreaView style={styles.classOptionScreen} edges={["top", "bottom"]}>
+      <View style={styles.programListHeader}>
+        <Pressable
+          accessibilityLabel="Back"
+          hitSlop={10}
+          style={styles.programListBackButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Feather name="arrow-left" size={19} color="#777777" />
+        </Pressable>
+        <Text style={styles.programListHeaderTitle}>Reservation</Text>
+        <View style={styles.programListHeaderSpacer} />
+      </View>
+
+      <ScrollView
+        style={styles.page}
+        contentContainerStyle={styles.reservationContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.reservationCard}>
+          <View style={styles.reservationProgramRow}>
+            <Image
+              source={{ uri: FIGMA_ASSETS.reservation.program }}
+              style={styles.reservationProgramImage}
+              resizeMode="cover"
+            />
+            <View style={styles.reservationProgramCopy}>
+              <Text style={styles.reservationProgramTitle}>{active.title}</Text>
+              <View style={styles.reservationMetaRow}>
+                <Feather name="globe" size={14} color="#8A8A8A" />
+                <Text style={styles.reservationMetaText}>{schedule.language}</Text>
+              </View>
+              <View style={styles.reservationMetaRow}>
+                <Feather name="map-pin" size={14} color="#8A8A8A" />
+                <Text style={styles.reservationMetaText}>{schedule.address}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.reservationCard}>
+          <Text style={styles.reservationDateTitle}>
+            {lessonCount} lessons · {schedule.dateRange}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={datesExpanded ? "Hide full dates" : "Show full dates"}
+            accessibilityState={{ expanded: datesExpanded }}
+            style={styles.reservationDatesToggle}
+            onPress={() => setDatesExpanded((open) => !open)}
+          >
+            <Text style={styles.reservationDatesToggleText}>Hide full dates</Text>
+            <Feather name={datesExpanded ? "chevron-up" : "chevron-down"} size={16} color="#8A8A8A" />
+          </Pressable>
+          {datesExpanded ? (
+            <View style={styles.classOptionLessonList}>
+              <Text style={styles.reservationLessonHeading}>Lesson dates</Text>
+              <LessonDateRows dates={schedule.lessonDates} />
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.reservationDivider} />
+
+        <View style={styles.reservationSection}>
+          <Text style={styles.reservationSectionTitle}>Hosted by</Text>
+          <View style={styles.reservationPersonRow}>
+            <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.reservationPersonImage} resizeMode="cover" />
+            <View style={styles.reservationHostCopy}>
+              <Text style={styles.reservationPersonName}>{centre.detailName || centre.name}</Text>
+            </View>
+            <View style={styles.reservationRating}>
+              <MaterialCommunityIcons name="star" size={16} color="#222222" />
+              <Text style={styles.reservationRatingText}>{centre.rating.toFixed(2)}</Text>
+            </View>
+          </View>
+          <View style={styles.reservationPersonRow}>
+            <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.reservationPersonImage} resizeMode="cover" />
+            <View style={styles.reservationHostCopy}>
+              <Text style={styles.reservationPersonName}>{schedule.coachName}</Text>
+              <Text style={styles.reservationPersonMeta}>Program Coach</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.reservationDivider} />
+
+        <View style={styles.reservationSection}>
+          <Text style={styles.reservationSectionTitle}>Booking for</Text>
+          <View style={styles.reservationPersonRow}>
+            <Image source={{ uri: FIGMA_ASSETS.reservation.child }} style={styles.reservationPersonImage} resizeMode="cover" />
+            <Text style={styles.reservationBookingName}>{student.name}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Switch child" hitSlop={8} onPress={() => navigation.navigate("SelectChildApp")}>
+              <Text style={styles.reservationSwitch}>Switch</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.reservationDivider} />
+
+        <View style={styles.reservationSection}>
+          <View style={styles.reservationPayHeader}>
+            <Text style={styles.reservationSectionTitle}>Pay with</Text>
+            <Text style={styles.reservationStripe}>
+              Powered by <Text style={styles.reservationStripeWord}>stripe</Text>
+            </Text>
+          </View>
+          <Text style={styles.reservationPayMethodLabel}>Payment method</Text>
+          <View style={styles.reservationPaymentRow}>
+            <View style={styles.reservationPaymentIcons}>
+              {PAYMENT_ICONS.map((icon) => (
+                <SvgXml key={icon.id} xml={icon.xml} width={icon.width} height={icon.height} />
+              ))}
+            </View>
+            <Text style={styles.reservationSwitch}>Add</Text>
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Promote code" hitSlop={8} onPress={() => navigation.navigate("PromoteCodeApp")}>
+            <Text style={styles.reservationPromote}>{appliedPromoteCode || "Promote code"}</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.reservationDivider} />
+
+        <View style={styles.reservationSummaryCard}>
+          <Text style={styles.reservationPriceLine}>
+            {schedule.originalPrice ? (
+              <Text style={styles.reservationPriceOriginal}>${schedule.originalPrice} </Text>
+            ) : null}
+            <Text style={styles.reservationPriceNow}>${schedule.price}</Text>
+            <Text style={styles.reservationPriceUnit}> lesson</Text>
+          </Text>
+          <Text style={styles.reservationScheduleMeta}>
+            {lessonCount} lessons · {schedule.dateRange}
+          </Text>
+          <View style={styles.reservationAttendeeRow}>
+            <View style={styles.classOptionAvatarStack}>
+              {attendeeAvatars.map((avatar, index) => (
+                <Image
+                  key={`reservation-avatar-${index}`}
+                  source={{ uri: avatar }}
+                  style={[styles.reservationAttendeeAvatar, index === 0 ? null : styles.classOptionAvatarOverlap]}
+                  resizeMode="cover"
+                />
+              ))}
+            </View>
+            <Text style={styles.reservationGoingText}>+{schedule.goingCount} Going</Text>
+            <Text style={styles.reservationSpotsText}>{schedule.spotsLeft} spots left</Text>
+          </View>
+          <Text style={styles.reservationProtectText}>
+            Your booking is protected by <Text style={styles.reservationProtectName}>zcare</Text>
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Reserve ${lessonCount} lessons from ${schedule.dateRange}`}
+            style={styles.reservationReserveButton}
+            onPress={() => {
+              const booking = {
+                id: `b${Date.now()}`,
+                programId: active.id,
+                title: active.title,
+                lessonCount,
+                dateRange: schedule.dateRange,
+                total,
+              }
+              setFlowAppState((prev) => ({ ...prev, bookings: [booking, ...prev.bookings] }))
+              navigation.navigate("AppTabs", { screen: "Calendar" })
+            }}
+          >
+            <Text style={styles.reservationReserveButtonText}>Reserve</Text>
+          </Pressable>
+          <View style={styles.reservationBreakdown}>
+            <View style={styles.reservationBreakdownRow}>
+              <Text style={styles.reservationBreakdownLabel}>{schedule.price} x {lessonCount} lessons</Text>
+              <Text style={styles.reservationBreakdownValue}>${formatAmount(lessonTotal)}</Text>
+            </View>
+            {limitedDiscount ? (
+              <View style={styles.reservationBreakdownRow}>
+                <Text style={styles.reservationBreakdownLabel}>Limited discount</Text>
+                <Text style={styles.reservationDiscountValue}>-${formatAmount(limitedDiscount)}</Text>
+              </View>
+            ) : null}
+            {promoteDiscount ? (
+              <View style={styles.reservationBreakdownRow}>
+                <View style={styles.reservationCouponRow}>
+                  <MaterialCommunityIcons name="check-circle-outline" size={16} color="#0ABAB5" />
+                  <Text style={styles.reservationCouponCode}>{appliedPromoteCode}</Text>
+                </View>
+                <Text style={styles.reservationDiscountValue}>-${promoteDiscount}</Text>
+              </View>
+            ) : null}
+            <View style={styles.reservationBreakdownRow}>
+              <Text style={styles.reservationBreakdownLabel}>Platform fee</Text>
+              <Text style={styles.reservationBreakdownValue}>${platformFee}</Text>
+            </View>
+            <View style={styles.reservationTotalRow}>
+              <Text style={styles.reservationTotalLabel}>Total (HKD)</Text>
+              <Text style={styles.reservationTotalValue}>${formatAmount(total)}</Text>
+            </View>
+          </View>
+        </View>
+
+        <Text style={styles.reservationFinePrint}>
+          <Text style={styles.reservationFineBrand}>zcare</Text>
+          {" "}helps protect your ClassZ booking by supporting class records, photos, coach feedback, and service-related issues under platform policy.{" "}
+          <Text style={styles.reservationLearnMore}>Learn More</Text>
+        </Text>
+        <Text style={styles.reservationFinePrint}>
+          By paying, you agree to our <Text style={styles.reservationLink}>Cancellation Policy</Text>,{" "}
+          <Text style={styles.reservationLink}>Refund Policy</Text>, and{" "}
+          <Text style={styles.reservationLink}>Terms and Conditions</Text>. Confirmed bookings are non-refundable, including sickness or absence. Direct centre arrangements may not be covered by ZCare or ClassZ Passport.
+        </Text>
+      </ScrollView>
+    </SafeAreaView>
+  )
+}
+
+const BOOKING_CHILDREN = [
+  {
+    id: "s1",
+    name: "Charlie Wong",
+    level: "Beginner",
+    years: 2,
+    connected: true,
+    age: 6,
+    sen: true,
+    image: FIGMA_ASSETS.reservation.child,
+  },
+  {
+    id: "s4",
+    name: "Joseph Wong",
+    level: "Achiever",
+    years: 2,
+    connected: false,
+    age: 6,
+    sen: true,
+    image: FIGMA_ASSETS.reservation.child,
+  },
+] as const
+
+const PROMOTE_VOUCHERS = ["voucher-1", "voucher-2", "voucher-3", "voucher-4"] as const
+
+const PROMOTE_TERMS = [
+  "The voucher can be applied to enrollment of $220 or more.",
+  "ClassZ reserves the right to adjust, suspend, or cancel any vouchers, discounts, and promotion at its discretion without prior notice.",
+  "Certain vouchers will be distributed at random, and the discount amount will be based on the amount shown on the voucher. ClassZ reserves the right to adjust, suspend, or cancel any vouchers, discounts, or promotions at its sole discretion without prior notice.",
+  "This voucher can only be used at the designated centres specified in the promotions.",
+  "Not applicable to orders with fixed price items.",
+]
+
+function SelectChildScreen({
+  navigation,
   flowAppState,
   setFlowAppState,
 }: {
@@ -1658,65 +1950,168 @@ function ReservationAppScreen({
   flowAppState: FlowAppState
   setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
 }) {
-  const active = flowAppState.programs.find((p) => p.id === flowAppState.selectedProgramId) || flowAppState.programs[0]
-  const lessonCount = 8
-  const discount = flowAppState.couponCode.trim().toUpperCase() === "SAVE800" ? 800 : 0
-  const total = active.price * lessonCount - discount + 5
+  return (
+    <SafeAreaView style={styles.classOptionScreen} edges={["top", "bottom"]}>
+      <View style={styles.programListHeader}>
+        <Pressable accessibilityLabel="Back" hitSlop={10} style={styles.programListBackButton} onPress={() => navigation.goBack()}>
+          <Feather name="arrow-left" size={19} color="#777777" />
+        </Pressable>
+        <Text style={styles.programListHeaderTitle}>Select Child</Text>
+        <View style={styles.programListHeaderSpacer} />
+      </View>
+      <ScrollView style={styles.page} contentContainerStyle={styles.childSelectContent} showsVerticalScrollIndicator={false}>
+        {BOOKING_CHILDREN.map((child) => {
+          const selected = child.id === flowAppState.selectedStudentId
+          return (
+            <Pressable
+              key={child.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Select ${child.name}`}
+              accessibilityState={{ selected }}
+              style={[styles.childCard, selected ? styles.childCardSelected : null]}
+              onPress={() => {
+                setFlowAppState((prev) => ({ ...prev, selectedStudentId: child.id }))
+                navigation.goBack()
+              }}
+            >
+              <View style={styles.childCardRow}>
+                <View style={styles.childCardIdentity}>
+                  <Image source={{ uri: child.image }} style={styles.childCardAvatar} resizeMode="cover" />
+                  <Text style={styles.childCardName}>{child.name}</Text>
+                </View>
+                <View style={styles.childCardStats}>
+                  <View style={[styles.childLevelBadge, child.level === "Beginner" ? styles.childLevelBeginner : styles.childLevelAchiever]}>
+                    <Text style={[styles.childLevelText, child.level === "Beginner" ? styles.childLevelBeginnerText : styles.childLevelAchieverText]}>
+                      {child.level}
+                    </Text>
+                  </View>
+                  <Text style={styles.childCardYearValue}>{child.years}</Text>
+                  <Text style={styles.childCardYearLabel}>Years on ClassZ</Text>
+                  <View style={styles.childCardDivider} />
+                  <View style={styles.childSchoolRow}>
+                    <Text style={styles.childSchoolName}>
+                      <Text style={styles.childSchoolMark}>z</Text>
+                      school
+                    </Text>
+                    <Text style={[styles.childSchoolStatus, child.connected ? styles.childSchoolConnected : styles.childSchoolMuted]}>
+                      {child.connected ? "connected" : "not connected"}
+                    </Text>
+                  </View>
+                  <View style={styles.childCardDivider} />
+                  <View style={styles.childCardMetaRow}>
+                    <View style={styles.childCardMeta}>
+                      <MaterialCommunityIcons name="gender-male" size={14} color="#0ABAB5" />
+                      <Text style={styles.childCardMetaText}>Age {child.age}</Text>
+                    </View>
+                    {child.sen ? (
+                      <View style={styles.childCardMeta}>
+                        <MaterialCommunityIcons name="check-circle-outline" size={14} color="#0ABAB5" />
+                        <Text style={styles.childCardMetaText}>SEN</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+            </Pressable>
+          )
+        })}
+      </ScrollView>
+    </SafeAreaView>
+  )
+}
+
+function PromoteCodeScreen({
+  navigation,
+  setFlowAppState,
+}: {
+  navigation: any
+  setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
+}) {
+  const [code, setCode] = useState("")
+  const [termsOpen, setTermsOpen] = useState(false)
+
+  const applyVoucher = (nextCode: string) => {
+    setFlowAppState((prev) => ({ ...prev, couponCode: nextCode.trim().toUpperCase() }))
+    navigation.goBack()
+  }
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
-      <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
-        <Text style={styles.pageTitle}>Reservation</Text>
-        <View style={styles.card}>
-          <Image source={{ uri: FIGMA_ASSETS.reservation.program }} style={styles.appCardImageTall} />
-          <Text style={styles.cardTitle}>{active.title}</Text>
-          <Text style={styles.cardMeta}>8 lessons · Oct 23 - Nov 28 · {active.location}</Text>
-          <View style={styles.inlineAvatarRow}>
-            <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.inlineAvatar} />
-            <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.inlineAvatar} />
-            <Image source={{ uri: FIGMA_ASSETS.reservation.child }} style={styles.inlineAvatar} />
-          </View>
-        </View>
-        <Text style={styles.sectionTitle}>Promote code</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Coupon code (try SAVE800)"
-          value={flowAppState.couponCode}
-          onChangeText={(t) => setFlowAppState((prev) => ({ ...prev, couponCode: t }))}
-        />
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Pay with</Text>
-          <View style={styles.paymentRow}>
-            {[FIGMA_ASSETS.reservation.paymentVisa, FIGMA_ASSETS.reservation.paymentAmex, FIGMA_ASSETS.reservation.paymentPayPal, FIGMA_ASSETS.reservation.paymentApplePay, FIGMA_ASSETS.reservation.paymentMastercard].map((icon, idx) => (
-              <Image key={`${icon}-${idx}`} source={{ uri: icon }} style={styles.paymentIcon} />
-            ))}
-          </View>
-          <Text style={styles.cardMeta}>Lesson fee: ${active.price * lessonCount}</Text>
-          <Text style={styles.cardMeta}>Discount: -${discount}</Text>
-          <Text style={styles.cardMeta}>Platform fee: $5</Text>
-          <Text style={styles.cardTitle}>Total (HKD): ${total}</Text>
-        </View>
-        <Pressable
-          style={styles.primaryButton}
-          onPress={() => {
-            const booking = {
-              id: `b${Date.now()}`,
-              programId: active.id,
-              title: active.title,
-              lessonCount,
-              dateRange: "Oct 23 - Nov 28",
-              total,
-            }
-            setFlowAppState((prev) => ({ ...prev, bookings: [booking, ...prev.bookings] }))
-            navigation.navigate("AppTabs", { screen: "Calendar" })
-          }}
-        >
-          <Text style={styles.primaryButtonText}>Reserve & Open Calendar</Text>
+    <SafeAreaView style={styles.classOptionScreen} edges={["top", "bottom"]}>
+      <View style={styles.programListHeader}>
+        <Pressable accessibilityLabel="Back" hitSlop={10} style={styles.programListBackButton} onPress={() => navigation.goBack()}>
+          <Feather name="arrow-left" size={19} color="#777777" />
         </Pressable>
-        <Text style={styles.microText}>
-          By paying, you agree to ClassZ terms and cancellation policy.
-        </Text>
+        <Text style={styles.programListHeaderTitle}>Promote Code</Text>
+        <View style={styles.programListHeaderSpacer} />
+      </View>
+      <ScrollView style={styles.page} contentContainerStyle={styles.promoteContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <View style={styles.promoteInput}>
+          <TextInput
+            style={styles.promoteInputField}
+            placeholder="Promote code"
+            placeholderTextColor="#B0B0B0"
+            value={code}
+            onChangeText={setCode}
+            autoCapitalize="characters"
+            autoCorrect={false}
+          />
+          <Pressable accessibilityRole="button" accessibilityLabel="Redeem promote code" hitSlop={8} onPress={() => code.trim() && applyVoucher(code.trim())}>
+            <Text style={styles.promoteRedeem}>Redeem</Text>
+          </Pressable>
+        </View>
+        {PROMOTE_VOUCHERS.map((voucherId) => (
+          <View key={voucherId} style={styles.promoteCard}>
+            <View style={styles.promoteCardHeader}>
+              <View style={styles.promoteOfferRow}>
+                <MaterialCommunityIcons name="ticket-confirmation-outline" size={18} color="#0ABAB5" />
+                <Text style={styles.promoteOffer}>$60 OFF</Text>
+              </View>
+              <Text style={styles.promoteExpiry}>Until Mar 04, 2026</Text>
+            </View>
+            <View style={styles.promoteCardBody}>
+              <View style={styles.promoteCardCopy}>
+                <Text style={styles.promoteSpend}>Min. spend $300</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Selected centres only" style={styles.promoteCentresRow} onPress={() => setTermsOpen(true)}>
+                  <Text style={styles.promoteCentres}>Selected centres only</Text>
+                  <Feather name="chevron-down" size={14} color="#8A8A8A" />
+                </Pressable>
+              </View>
+              <Pressable accessibilityRole="button" accessibilityLabel="Use $60 off voucher" style={styles.promoteUseButton} onPress={() => applyVoucher("LOYAL2026")}>
+                <Text style={styles.promoteUseText}>Use</Text>
+              </Pressable>
+            </View>
+          </View>
+        ))}
       </ScrollView>
+      <Modal visible={termsOpen} transparent animationType="slide" onRequestClose={() => setTermsOpen(false)}>
+        <View style={styles.promoteSheetRoot}>
+          <Pressable accessibilityLabel="Close terms" style={styles.promoteSheetBackdrop} onPress={() => setTermsOpen(false)} />
+          <View style={styles.promoteSheet}>
+            <Pressable accessibilityLabel="Close" hitSlop={8} style={styles.promoteSheetClose} onPress={() => setTermsOpen(false)}>
+              <Feather name="x" size={16} color="#777777" />
+            </Pressable>
+            <Text style={styles.promoteSheetTitle}>Terms of use</Text>
+            <View style={styles.promoteOfferRow}>
+              <MaterialCommunityIcons name="ticket-confirmation-outline" size={18} color="#0ABAB5" />
+              <Text style={styles.promoteOffer}>$60 OFF</Text>
+            </View>
+            <Text style={styles.promoteSheetMeta}>Min. spend $300</Text>
+            <Text style={styles.promoteSheetMeta}>Selected centres only</Text>
+            <Text style={styles.promoteSheetMeta}>Expires on Mar 04, 2026</Text>
+            <View style={styles.promoteTerms}>
+              {PROMOTE_TERMS.map((term) => (
+                <View key={term} style={styles.promoteTermRow}>
+                  <Text style={styles.promoteTermBullet}>•</Text>
+                  <Text style={styles.promoteTermText}>{term}</Text>
+                </View>
+              ))}
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Got it" style={styles.reservationReserveButton} onPress={() => setTermsOpen(false)}>
+              <Text style={styles.reservationReserveButtonText}>Got it</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -2518,17 +2913,6 @@ function SearchPreview({ compact }: { compact?: boolean }) {
 }
 
 function ReservationPreview({ compact }: { compact?: boolean }) {
-  const paymentIcons = [
-    FIGMA_ASSETS.reservation.paymentVisa,
-    FIGMA_ASSETS.reservation.paymentAmex,
-    FIGMA_ASSETS.reservation.paymentPayPal,
-    FIGMA_ASSETS.reservation.paymentApplePay,
-    FIGMA_ASSETS.reservation.paymentMastercard,
-    FIGMA_ASSETS.reservation.paymentAlipay,
-    FIGMA_ASSETS.reservation.paymentWechat,
-    FIGMA_ASSETS.reservation.paymentUnionPay,
-    FIGMA_ASSETS.reservation.paymentJcb,
-  ]
   return (
     <View style={styles.previewPage}>
       <Text style={styles.previewHeading}>Reservation</Text>
@@ -2550,8 +2934,8 @@ function ReservationPreview({ compact }: { compact?: boolean }) {
         <View style={styles.previewPriceBlock}>
           <Text style={styles.previewSubHeading}>Pay with</Text>
           <View style={styles.paymentRow}>
-            {paymentIcons.map((icon, idx) => (
-              <Image key={`${icon}-${idx}`} source={{ uri: icon }} style={styles.paymentIcon} />
+            {PAYMENT_ICONS.map((icon) => (
+              <SvgXml key={icon.id} xml={icon.xml} width={icon.width} height={icon.height} />
             ))}
           </View>
           <Text style={styles.previewLinkText}>Promote code · Add</Text>
@@ -3028,8 +3412,14 @@ export default function App() {
                 />
               )}
             </Stack.Screen>
-            <Stack.Screen name="ReservationApp" options={{ title: "Reservation" }}>
+            <Stack.Screen name="ReservationApp" options={{ headerShown: false }}>
               {(props) => <ReservationAppScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
+            </Stack.Screen>
+            <Stack.Screen name="SelectChildApp" options={{ headerShown: false }}>
+              {(props) => <SelectChildScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
+            </Stack.Screen>
+            <Stack.Screen name="PromoteCodeApp" options={{ headerShown: false }}>
+              {(props) => <PromoteCodeScreen {...props} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="LearningRecordsApp" options={{ title: "Learning Records" }}>
               {(props) => <LearningRecordsAppScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
@@ -3757,12 +4147,218 @@ const styles = StyleSheet.create({
   classOptionCoachText: { fontSize: FONT.caption, color: "#6B6B6B" },
   classOptionDatesRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
   classOptionDatesText: { fontSize: FONT.caption, color: "#6B6B6B" },
-  classOptionLessonList: { width: "100%" },
-  classOptionLessonRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9 },
-  classOptionLessonRowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#E5E5E5" },
-  classOptionLessonNumber: { width: 78, fontSize: FONT.secondary, fontWeight: "700", color: "#222222" },
-  classOptionLessonDate: { flex: 1, fontSize: FONT.secondary, color: "#6B6B6B" },
-  classOptionLessonTime: { fontSize: FONT.secondary, color: "#6B6B6B" },
+  classOptionLessonList: { width: "100%", gap: 2 },
+  classOptionLessonRow: { flexDirection: "row", alignItems: "flex-start", gap: 14, paddingVertical: 7 },
+  classOptionLessonNumber: { width: 16, fontSize: FONT.bodyLg, fontWeight: "700", color: "#222222", lineHeight: 18 },
+  classOptionLessonCopy: { flex: 1, gap: 2 },
+  classOptionLessonDate: { fontSize: FONT.secondary, color: "#5E5E5E", lineHeight: 18 },
+  classOptionLessonTime: { fontSize: FONT.secondary, color: "#8A8A8A", lineHeight: 18 },
+  reservationContent: { width: "100%", maxWidth: 520, alignSelf: "center", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 36, gap: 16 },
+  reservationCard: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  reservationProgramRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  reservationProgramImage: { width: 78, height: 78, borderRadius: 10, backgroundColor: "#E5E7EB" },
+  reservationProgramCopy: { flex: 1, gap: 5 },
+  reservationProgramTitle: { fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
+  reservationMetaRow: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
+  reservationMetaText: { flex: 1, fontSize: FONT.secondary, lineHeight: 18, color: "#8A8A8A" },
+  reservationDateTitle: { fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
+  reservationDatesToggle: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 8 },
+  reservationDatesToggleText: { fontSize: FONT.secondary, color: "#8A8A8A" },
+  reservationLessonHeading: { marginTop: 8, marginBottom: 4, fontSize: FONT.bodyLg, fontWeight: "700", color: "#222222" },
+  reservationDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "#E4E4E4" },
+  reservationSection: { gap: 14, paddingVertical: 4 },
+  reservationSectionTitle: { fontSize: FONT.heading, fontWeight: "700", color: "#222222" },
+  reservationPersonRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  reservationPersonImage: { width: 52, height: 52, borderRadius: 26, backgroundColor: "#E5E7EB" },
+  reservationHostCopy: { flex: 1, gap: 2 },
+  reservationPersonName: { fontSize: FONT.headline, fontWeight: "600", color: "#222222", lineHeight: 21 },
+  reservationBookingName: { flex: 1, fontSize: FONT.headline, fontWeight: "600", color: "#222222" },
+  reservationPersonMeta: { fontSize: FONT.body, color: "#8A8A8A" },
+  reservationRating: { flexDirection: "row", alignItems: "center", gap: 4 },
+  reservationRatingText: { fontSize: FONT.bodyLg, fontWeight: "600", color: "#222222" },
+  reservationSwitch: { fontSize: FONT.bodyLg, color: "#222222", textDecorationLine: "underline" },
+  reservationPayHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  reservationStripe: { fontSize: FONT.bodyLg, color: "#8A8A8A" },
+  reservationStripeWord: { color: "#635BFF", fontWeight: "700", fontSize: FONT.headline },
+  reservationPayMethodLabel: { fontSize: FONT.bodyLg, color: "#333333" },
+  reservationPaymentRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  reservationPaymentIcons: { flex: 1, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
+  reservationPaymentIcon: { width: 32, height: 20, resizeMode: "contain" },
+  reservationPromote: { fontSize: FONT.bodyLg, color: "#222222", textDecorationLine: "underline" },
+  reservationSummaryCard: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    gap: 12,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  reservationPriceLine: { fontSize: FONT.title, color: "#222222" },
+  reservationPriceOriginal: { fontSize: FONT.title, color: "#B5B5B5", textDecorationLine: "line-through" },
+  reservationPriceNow: { fontSize: FONT.title, fontWeight: "700", color: "#222222" },
+  reservationPriceUnit: { fontSize: FONT.title, fontWeight: "400", color: "#222222" },
+  reservationScheduleMeta: { fontSize: FONT.bodyLg, color: "#222222" },
+  reservationAttendeeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  reservationAttendeeAvatar: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderColor: "#FFFFFF", backgroundColor: "#E5E7EB" },
+  reservationGoingText: { fontSize: FONT.secondary, color: "#8A8A8A" },
+  reservationSpotsText: { fontSize: FONT.secondary, color: "#0ABAB5", fontWeight: "600" },
+  reservationProtectText: { marginTop: 4, fontSize: FONT.body, color: "#666666", textAlign: "center" },
+  reservationProtectName: { fontSize: FONT.bodyLg, fontWeight: "700", color: "#222222" },
+  reservationReserveButton: {
+    width: "100%",
+    minHeight: 48,
+    borderRadius: 12,
+    backgroundColor: "#2A2A2A",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  reservationReserveButtonText: { fontSize: FONT.headline, fontWeight: "600", color: "#FFFFFF" },
+  reservationBreakdown: { gap: 14, marginTop: 6 },
+  reservationBreakdownRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  reservationBreakdownLabel: { fontSize: FONT.bodyLg, color: "#222222", textDecorationLine: "underline" },
+  reservationBreakdownValue: { fontSize: FONT.bodyLg, color: "#222222" },
+  reservationDiscountValue: { fontSize: FONT.bodyLg, fontWeight: "600", color: "#1FA971" },
+  reservationCouponRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  reservationCouponCode: { fontSize: FONT.bodyLg, fontWeight: "600", color: "#0ABAB5" },
+  reservationTotalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E4E4E4",
+    paddingTop: 14,
+  },
+  reservationTotalLabel: { fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
+  reservationTotalValue: { fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
+  reservationFinePrint: { fontSize: FONT.secondary, lineHeight: 19, color: "#6B6B6B" },
+  reservationFineBrand: { fontSize: FONT.bodyLg, fontWeight: "700", color: "#0ABAB5" },
+  reservationLearnMore: { fontSize: FONT.secondary, color: "#222222", textDecorationLine: "underline" },
+  reservationLink: { color: "#2F6BFF", textDecorationLine: "underline" },
+  childSelectContent: { width: "100%", maxWidth: 520, alignSelf: "center", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 36, gap: 16 },
+  childCard: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "transparent",
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 16,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  childCardSelected: { borderColor: "#7EDCD8" },
+  childCardRow: { flexDirection: "row", alignItems: "stretch", gap: 16 },
+  childCardIdentity: { width: 112, alignItems: "center", justifyContent: "space-between" },
+  childCardAvatar: { width: 96, height: 96, borderRadius: 48, backgroundColor: "#E5E7EB" },
+  childCardName: { marginTop: 12, fontSize: FONT.headerTitle, fontWeight: "700", color: "#222222", textAlign: "center" },
+  childCardStats: { flex: 1, gap: 6 },
+  childCardYearValue: { fontSize: FONT.title, fontWeight: "700", color: "#222222", lineHeight: 26 },
+  childCardYearLabel: { fontSize: FONT.body, fontWeight: "400", color: "#333333" },
+  childCardDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "#E4E4E4", marginVertical: 4 },
+  childLevelBadge: { alignSelf: "flex-start", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  childLevelBeginner: { backgroundColor: "#E5F7F6" },
+  childLevelAchiever: { backgroundColor: "#F3F3F3" },
+  childLevelText: { fontSize: FONT.caption, fontWeight: "600" },
+  childLevelBeginnerText: { color: "#3AADA8" },
+  childLevelAchieverText: { color: "#9A9A9A" },
+  childSchoolRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  childSchoolName: { fontSize: FONT.bodyLg, fontWeight: "700", color: "#222222" },
+  childSchoolMark: { color: "#0ABAB5", fontWeight: "700" },
+  childSchoolStatus: { fontSize: FONT.body, fontWeight: "400" },
+  childSchoolConnected: { color: "#0ABAB5" },
+  childSchoolMuted: { color: "#A3A3A3" },
+  childCardMetaRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  childCardMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
+  childCardMetaText: { fontSize: FONT.body, fontWeight: "400", color: "#5E5E5E" },
+  promoteContent: { width: "100%", maxWidth: 520, alignSelf: "center", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 36, gap: 16 },
+  promoteInput: {
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E4E4E4",
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    gap: 12,
+  },
+  promoteInputField: { flex: 1, fontSize: FONT.bodyLg, color: "#222222", paddingVertical: 12 },
+  promoteRedeem: { fontSize: FONT.bodyLg, color: "#222222", textDecorationLine: "underline" },
+  promoteCard: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 12,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  promoteCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  promoteOfferRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  promoteOffer: { fontSize: FONT.heading, fontWeight: "700", color: "#222222" },
+  promoteExpiry: { fontSize: FONT.secondary, color: "#8A8A8A" },
+  promoteCardBody: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12 },
+  promoteCardCopy: { flex: 1, gap: 6 },
+  promoteSpend: { fontSize: FONT.body, color: "#222222" },
+  promoteCentresRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  promoteCentres: { fontSize: FONT.secondary, color: "#8A8A8A" },
+  promoteUseButton: {
+    minWidth: 72,
+    minHeight: 36,
+    borderRadius: 8,
+    backgroundColor: "#3A3A3A",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  promoteUseText: { fontSize: FONT.bodyLg, fontWeight: "600", color: "#FFFFFF" },
+  promoteSheetRoot: { flex: 1, justifyContent: "flex-end" },
+  promoteSheetBackdrop: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "rgba(0,0,0,0.45)" },
+  promoteSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 28,
+    gap: 10,
+  },
+  promoteSheetClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F1F2F2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  promoteSheetTitle: { marginTop: 6, fontSize: FONT.heading, fontWeight: "700", color: "#222222" },
+  promoteSheetMeta: { fontSize: FONT.body, color: "#666666" },
+  promoteTerms: { gap: 10, marginTop: 8, marginBottom: 8 },
+  promoteTermRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  promoteTermBullet: { fontSize: FONT.body, lineHeight: 20, color: "#444444" },
+  promoteTermText: { flex: 1, fontSize: FONT.body, lineHeight: 20, color: "#444444" },
   classOptionReserveButton: {
     width: "65%",
     minHeight: 46,
