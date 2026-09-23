@@ -1540,37 +1540,246 @@ function MemberProfileScreen({ navigation, route }: { navigation: any; route: an
   )
 }
 
+type ScheduleView = "calendar" | "upcoming"
+
+const SCHEDULE_CALENDAR_DAYS = [
+  31, 30, 1, 2, 3, 4, 5,
+  6, 7, 8, 9, 10, 11, 12,
+  13, 14, 15, 16, 17, 18, 19,
+  20, 21, 22, 23, 24, 25, 26,
+  27, 28, 29, 30, 1, 2, 3,
+] as const
+
 function CalendarTabScreen({ flowAppState }: { flowAppState: FlowAppState }) {
+  const [view, setView] = useState<ScheduleView>("calendar")
+  const [selectedScheduleChildId, setSelectedScheduleChildId] = useState<string | null>(null)
+  const [scopeMenuOpen, setScopeMenuOpen] = useState(false)
+  const selectedStudent = flowAppState.students.find((item) => item.id === (selectedScheduleChildId || flowAppState.selectedStudentId)) || flowAppState.students[0]
+  const selectedChild = BOOKING_CHILDREN.find((item) => item.id === selectedStudent.id) || BOOKING_CHILDREN[0]
+  const showingAllChildren = selectedScheduleChildId === null
+  const bookedProgram = flowAppState.bookings[0]
+  const scheduleItems = [
+    {
+      id: "schedule-guitar-1",
+      time: "10:00AM-01:00PM",
+      date: "Sept 02",
+      title: bookedProgram?.title || "ClassZ Guitar Program",
+      lesson: "Lesson 1 of 8",
+      child: "Charlie Wong",
+      image: FIGMA_ASSETS.reservation.program,
+      color: "#0ABAB5",
+    },
+    {
+      id: "schedule-academic",
+      time: "02:00PM-03:00PM",
+      date: "Sept 02",
+      title: "Rising Star Academic Program",
+      lesson: "Lesson 1 of 8",
+      child: "Shelly Wong",
+      image: FIGMA_ASSETS.main.recommend1,
+      color: "#F4AE00",
+    },
+    {
+      id: "schedule-painting",
+      time: "04:00PM-06:00PM",
+      date: "Sept 02",
+      title: "ClassZ Painting Program",
+      lesson: "Lesson 1 of 8",
+      child: "Lucas Wong",
+      image: FIGMA_ASSETS.main.recommend2,
+      color: "#E96E76",
+    },
+    {
+      id: "schedule-painting-2",
+      time: "04:00PM-06:00PM",
+      date: "Sept 02",
+      title: "ClassZ Painting Program",
+      lesson: "Lesson 1 of 8",
+      child: "Lucas Wong",
+      image: FIGMA_ASSETS.main.recommend2,
+      color: "#0ABAB5",
+    },
+  ]
+  const childScheduleItems = [
+    scheduleItems[0],
+    {
+      ...scheduleItems[2],
+      id: "schedule-child-painting",
+      child: selectedStudent.name,
+      time: "04:00PM-06:00PM",
+    },
+  ]
+  const upcomingChildItems = [
+    { ...scheduleItems[0], id: "upcoming-1", date: "Sept 02", child: selectedStudent.name },
+    { ...scheduleItems[0], id: "upcoming-2", date: "Oct 14", child: selectedStudent.name, lesson: "Lesson 1 of 8" },
+    { ...scheduleItems[0], id: "upcoming-3", date: "Oct 23", child: selectedStudent.name, lesson: "Lesson 3 of 8" },
+  ]
+  const visibleItems = !showingAllChildren
+    ? (view === "calendar" ? childScheduleItems : upcomingChildItems)
+    : (view === "calendar" ? scheduleItems : scheduleItems.slice(0, 3))
+
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
-      <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
-        <Text style={styles.pageTitle}>Calendar</Text>
-        <View style={styles.kpiRow}>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiValue}>{flowAppState.bookings.length}</Text>
-            <Text style={styles.kpiLabel}>Booked programs</Text>
-          </View>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiValue}>
-              ${flowAppState.bookings.reduce((sum, b) => sum + b.total, 0)}
-            </Text>
-            <Text style={styles.kpiLabel}>Total paid</Text>
-          </View>
+    <SafeAreaView style={styles.scheduleScreen} edges={["top"]}>
+      <ScrollView style={styles.page} contentContainerStyle={styles.scheduleContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.scheduleTitle}>Schedule</Text>
+
+        <View style={styles.scheduleScopeRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Select child schedule"
+            accessibilityState={{ expanded: scopeMenuOpen }}
+            style={styles.scheduleScopeButton}
+            onPress={() => setScopeMenuOpen((open) => !open)}
+          >
+            {showingAllChildren ? (
+              <View style={styles.scheduleAllAvatars}>
+                {[FIGMA_ASSETS.reservation.child, FIGMA_ASSETS.reservation.coach, FIGMA_ASSETS.reservation.child].map((image, index) => (
+                  <Image
+                    key={`all-child-${index}`}
+                    source={{ uri: image }}
+                    style={[styles.scheduleScopeAvatar, index > 0 ? styles.scheduleScopeAvatarOverlap : null]}
+                    resizeMode="cover"
+                  />
+                ))}
+              </View>
+            ) : (
+              <Image source={{ uri: selectedChild.image }} style={styles.scheduleScopeAvatar} resizeMode="cover" />
+            )}
+            <Text style={styles.scheduleScopeText}>{showingAllChildren ? "All" : selectedStudent.name}</Text>
+            <Feather name={scopeMenuOpen ? "chevron-up" : "chevron-down"} size={20} color="#333333" />
+          </Pressable>
+          {view === "upcoming" ? <Text style={styles.scheduleTransactions}>Transactions</Text> : null}
         </View>
-        {!flowAppState.bookings.length ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>No bookings yet</Text>
-            <Text style={styles.cardMeta}>Book from Home/Search to see schedule here.</Text>
+
+        {scopeMenuOpen ? (
+          <View style={styles.scheduleScopeMenu}>
+            <Pressable
+              accessibilityRole="menuitem"
+              style={styles.scheduleScopeMenuItem}
+              onPress={() => {
+                setSelectedScheduleChildId(null)
+                setScopeMenuOpen(false)
+              }}
+            >
+              <View style={styles.scheduleScopeMenuAllAvatars}>
+                {[FIGMA_ASSETS.reservation.child, FIGMA_ASSETS.reservation.coach, FIGMA_ASSETS.reservation.child].map((image, index) => (
+                  <Image
+                    key={`menu-all-child-${index}`}
+                    source={{ uri: image }}
+                    style={[styles.scheduleScopeMenuAvatar, index > 0 ? styles.scheduleScopeMenuAvatarOverlap : null]}
+                    resizeMode="cover"
+                  />
+                ))}
+              </View>
+              <Text style={styles.scheduleScopeMenuName}>All</Text>
+              {showingAllChildren ? <Feather name="check" size={18} color="#0ABAB5" /> : null}
+            </Pressable>
+            {BOOKING_CHILDREN.map((child) => (
+              <Pressable
+                key={child.id}
+                accessibilityRole="menuitem"
+                style={styles.scheduleScopeMenuItem}
+                onPress={() => {
+                  setSelectedScheduleChildId(child.id)
+                  setScopeMenuOpen(false)
+                }}
+              >
+                <Image source={{ uri: child.image }} style={styles.scheduleScopeMenuSingleAvatar} resizeMode="cover" />
+                <Text style={styles.scheduleScopeMenuName}>{child.name}</Text>
+                {selectedScheduleChildId === child.id ? <Feather name="check" size={18} color="#0ABAB5" /> : null}
+              </Pressable>
+            ))}
           </View>
         ) : null}
-        {flowAppState.bookings.map((b) => (
-          <View key={b.id} style={styles.card}>
-            <Image source={{ uri: programImageFor(flowAppState.programs.find((p) => p.id === b.programId)?.category || "others") }} style={styles.appCardImage} />
-            <Text style={styles.cardTitle}>{b.title}</Text>
-            <Text style={styles.cardMeta}>{b.lessonCount} lessons · {b.dateRange}</Text>
-            <Text style={styles.cardMeta}>Total paid: ${b.total}</Text>
+
+        <View style={styles.scheduleSegment}>
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={{ selected: view === "calendar" }}
+            style={[styles.scheduleSegmentButton, view === "calendar" ? styles.scheduleSegmentButtonActive : null]}
+            onPress={() => setView("calendar")}
+          >
+            <Text style={styles.scheduleSegmentText}>Calendar</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={{ selected: view === "upcoming" }}
+            style={[styles.scheduleSegmentButton, view === "upcoming" ? styles.scheduleSegmentButtonActive : null]}
+            onPress={() => setView("upcoming")}
+          >
+            <Text style={styles.scheduleSegmentText}>Upcoming</Text>
+          </Pressable>
+        </View>
+
+        {view === "calendar" ? (
+          <View style={styles.scheduleCalendarCard}>
+            <View style={styles.scheduleCalendarHeader}>
+              <Pressable accessibilityLabel="Previous month" style={styles.scheduleMonthButton}>
+                <Feather name="chevron-left" size={18} color="#777777" />
+              </Pressable>
+              <View style={styles.scheduleMonthTitleWrap}>
+                <Text style={styles.scheduleMonthTitle}>September</Text>
+                <Text style={styles.scheduleMonthYear}>2026</Text>
+              </View>
+              <Pressable accessibilityLabel="Next month" style={styles.scheduleMonthButton}>
+                <Feather name="chevron-right" size={18} color="#777777" />
+              </Pressable>
+            </View>
+            <View style={styles.scheduleWeekRow}>
+              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+                <Text key={day} style={styles.scheduleWeekDay}>{day}</Text>
+              ))}
+            </View>
+            <View style={styles.scheduleCalendarGrid}>
+              {SCHEDULE_CALENDAR_DAYS.map((day, index) => {
+                const outsideMonth = index < 2 || index > 31
+                const selected = day === 2 && index < 10
+                const hasEvent = [3, 6, 8, 10, 16, 18, 23, 25, 29, 31].includes(index)
+                return (
+                  <View key={`${day}-${index}`} style={styles.scheduleDayCell}>
+                    <View style={[styles.scheduleDayNumberWrap, selected ? styles.scheduleDaySelected : null]}>
+                      <Text style={[
+                        styles.scheduleDayNumber,
+                        outsideMonth ? styles.scheduleDayOutside : null,
+                        selected ? styles.scheduleDayNumberSelected : null,
+                      ]}>
+                        {day}
+                      </Text>
+                    </View>
+                    {hasEvent ? <View style={styles.scheduleDayDot} /> : null}
+                  </View>
+                )
+              })}
+            </View>
           </View>
-        ))}
+        ) : (
+          <Pressable accessibilityRole="button" style={styles.scheduleViewAll}>
+            <Text style={styles.scheduleViewAllText}>View All</Text>
+          </Pressable>
+        )}
+
+        <View style={styles.scheduleList}>
+          {visibleItems.map((item) => (
+            <Pressable key={item.id} style={styles.scheduleCard}>
+              <View style={styles.scheduleCardTimeRow}>
+                <View style={[styles.scheduleCardDot, { backgroundColor: item.color }]} />
+                <Text style={styles.scheduleCardTime}>{item.time} · {item.date}</Text>
+              </View>
+              <View style={styles.scheduleCardMain}>
+                <Image source={{ uri: item.image }} style={styles.scheduleCardImage} resizeMode="cover" />
+                <View style={styles.scheduleCardCopy}>
+                  <Text style={styles.scheduleCardTitle} numberOfLines={1}>{item.title}</Text>
+                  <Text style={styles.scheduleCardLesson}>{item.lesson}</Text>
+                  <View style={styles.scheduleCardChildRow}>
+                    <Image source={{ uri: item.child === "Charlie Wong" || item.child === selectedStudent.name ? selectedChild.image : FIGMA_ASSETS.reservation.child }} style={styles.scheduleCardChildAvatar} resizeMode="cover" />
+                    <Text style={styles.scheduleCardChildName}>{item.child}</Text>
+                  </View>
+                  <Text style={styles.scheduleCardCentre} numberOfLines={2}>ClassZ Playgroup Bright Kids Drawing Centre</Text>
+                </View>
+              </View>
+            </Pressable>
+          ))}
+        </View>
       </ScrollView>
     </SafeAreaView>
   )
@@ -5003,6 +5212,132 @@ const styles = StyleSheet.create({
   reservationFineBrand: { fontSize: FONT.bodyLg, fontWeight: "700", color: "#0ABAB5" },
   reservationLearnMore: { fontSize: FONT.secondary, color: "#222222", textDecorationLine: "underline" },
   reservationLink: { color: "#2F6BFF", textDecorationLine: "underline" },
+  scheduleScreen: { flex: 1, backgroundColor: "#FFFFFF" },
+  scheduleContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 30,
+    gap: 14,
+  },
+  scheduleTitle: { fontSize: FONT.title, fontWeight: "700", color: "#111111" },
+  scheduleScopeRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  scheduleScopeButton: { flexDirection: "row", alignItems: "center", gap: 8 },
+  scheduleScopeAvatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#E5E7EB" },
+  scheduleAllAvatars: { width: 64, flexDirection: "row", alignItems: "center" },
+  scheduleScopeAvatarOverlap: { marginLeft: -18, borderWidth: 1.5, borderColor: "#FFFFFF" },
+  scheduleScopeText: { fontSize: FONT.bodyLg, fontWeight: "600", color: "#333333" },
+  scheduleTransactions: { fontSize: FONT.caption, color: "#222222", textDecorationLine: "underline" },
+  scheduleScopeMenu: {
+    borderRadius: 14,
+    paddingVertical: 6,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 5 },
+    shadowRadius: 14,
+    elevation: 5,
+  },
+  scheduleScopeMenuItem: {
+    minHeight: 54,
+    paddingHorizontal: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#EEEEEE",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  scheduleScopeMenuAllAvatars: { width: 52, flexDirection: "row", alignItems: "center" },
+  scheduleScopeMenuAvatar: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: "#FFFFFF", backgroundColor: "#E5E7EB" },
+  scheduleScopeMenuAvatarOverlap: { marginLeft: -18 },
+  scheduleScopeMenuSingleAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#E5E7EB" },
+  scheduleScopeMenuName: { flex: 1, fontSize: FONT.bodyLg, fontWeight: "600", color: "#333333" },
+  scheduleSegment: {
+    borderRadius: 18,
+    padding: 3,
+    flexDirection: "row",
+    backgroundColor: "#EEEEEE",
+  },
+  scheduleSegmentButton: {
+    flex: 1,
+    minHeight: 34,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scheduleSegmentButtonActive: {
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  scheduleSegmentText: { fontSize: FONT.caption, fontWeight: "600", color: "#333333" },
+  scheduleCalendarCard: {
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 14,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.09,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  scheduleCalendarHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  scheduleMonthButton: {
+    width: 28,
+    height: 28,
+    borderWidth: 1,
+    borderColor: "#E1E1E1",
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scheduleMonthTitleWrap: { alignItems: "center", gap: 1 },
+  scheduleMonthTitle: { fontSize: FONT.headline, fontWeight: "600", color: "#4B5563" },
+  scheduleMonthYear: { fontSize: FONT.micro, color: "#9A9A9A" },
+  scheduleWeekRow: { flexDirection: "row", marginBottom: 5 },
+  scheduleWeekDay: { width: "14.285%", fontSize: FONT.micro, color: "#9A9A9A", textAlign: "center" },
+  scheduleCalendarGrid: { flexDirection: "row", flexWrap: "wrap" },
+  scheduleDayCell: { width: "14.285%", height: 38, alignItems: "center", justifyContent: "center" },
+  scheduleDayNumberWrap: { width: 25, height: 25, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  scheduleDaySelected: { backgroundColor: "#0ABAB5" },
+  scheduleDayNumber: { fontSize: FONT.caption, color: "#3F4650" },
+  scheduleDayOutside: { color: "#B8B8B8" },
+  scheduleDayNumberSelected: { color: "#FFFFFF", fontWeight: "700" },
+  scheduleDayDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: "#0ABAB5", marginTop: 1 },
+  scheduleViewAll: { alignSelf: "flex-end" },
+  scheduleViewAllText: { fontSize: FONT.caption, color: "#222222", textDecorationLine: "underline" },
+  scheduleList: { gap: 14 },
+  scheduleCard: {
+    borderRadius: 14,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 11,
+    elevation: 3,
+  },
+  scheduleCardTimeRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  scheduleCardDot: { width: 7, height: 7, borderRadius: 4 },
+  scheduleCardTime: { fontSize: FONT.micro, color: "#6B6B6B" },
+  scheduleCardMain: { flexDirection: "row", gap: 12 },
+  scheduleCardImage: { width: 96, height: 92, borderRadius: 9, backgroundColor: "#E5E7EB" },
+  scheduleCardCopy: { flex: 1, gap: 4 },
+  scheduleCardTitle: { fontSize: FONT.body, fontWeight: "700", color: "#222222" },
+  scheduleCardLesson: { fontSize: FONT.caption, fontWeight: "600", color: "#333333" },
+  scheduleCardChildRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  scheduleCardChildAvatar: { width: 21, height: 21, borderRadius: 11, backgroundColor: "#E5E7EB" },
+  scheduleCardChildName: { fontSize: FONT.micro, color: "#444444" },
+  scheduleCardCentre: { fontSize: FONT.micro, lineHeight: 13, color: "#8A8A8A" },
   profileScreen: { flex: 1, backgroundColor: "#FFFFFF" },
   profileContent: {
     width: "100%",
