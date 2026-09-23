@@ -96,6 +96,61 @@ const LOCALE_KEY = "classz_mobile_locale"
 const Stack = createNativeStackNavigator<RootStackParamList>()
 const Tab = createBottomTabNavigator<TabsParamList>()
 
+type SearchFilterState = {
+  districts: string[]
+  minPrice: string
+  maxPrice: string
+  ratings: number[]
+  services: string[]
+}
+
+const SEARCH_FILTER_DISTRICTS = [
+  {
+    region: "Hong Kong Island",
+    districts: [
+      "Central", "Admiralty", "Sheung Wan", "Sai Ying Pun", "Kennedy Town", "Repulse Bay",
+      "Causeway Bay", "North Point", "Mid-Levels", "Wong Chuk Hang", "Quarry Bay", "Tai Koo",
+      "Chai Wan", "Aberdeen", "Stanley", "Tin Hau",
+    ],
+  },
+  {
+    region: "Kowloon",
+    districts: [
+      "Tsim Sha Tsui", "Yau Ma Tei", "Mong Kok", "Jordan", "Prince Edward", "Sham Shui Po",
+      "Cheung Sha Wan", "Lai Chi Kok", "Mei Foo", "Kowloon Tong", "Olympic", "Ho Man Tin",
+      "Hung Hom", "To Kwa Wan", "Wong Tai Sin", "Kai Tak", "Diamond Hill", "San Po Kong",
+      "Kwun Tong", "Ngau Tau Kok", "Kowloon Bay", "Lam Tin", "Yau Tong",
+    ],
+  },
+  {
+    region: "New Territories",
+    districts: [
+      "Tsuen Wan", "Kwai Fong", "Kwai Chung", "Tsing Yi", "Tuen Mun", "Yuen Long", "Tin Shui Wai",
+      "Sheung Shui", "Fanling", "Tai Po", "Sha Tin", "Fo Tan", "Ma On Shan", "Tai Wai", "Sai Kung",
+      "Tseung Kwan O", "Hang Hau", "Po Lam", "LOHAS Park", "Tung Chung", "Mui Wo", "Discovery Bay", "Islands",
+    ],
+  },
+] as const
+
+const SEARCH_FILTER_SERVICES = [
+  "SEN-inclusive",
+  "Performance Opportunity",
+  "Exam / Certificate Pathway",
+  "Small Class Size",
+] as const
+
+const DEFAULT_SEARCH_FILTERS: SearchFilterState = {
+  districts: [
+    "Central", "Kennedy Town", "Mid-Levels", "Wong Chuk Hang", "Aberdeen", "Tsim Sha Tsui",
+    "Prince Edward", "Mei Foo", "Kowloon Tong", "To Kwa Wan", "Diamond Hill", "Ngau Tau Kok",
+    "Tsuen Wan", "Tuen Mun", "Fanling", "Tai Po", "Sai Kung", "Po Lam", "Mui Wo",
+  ],
+  minPrice: "100",
+  maxPrice: "900",
+  ratings: [4, 5],
+  services: ["SEN-inclusive", "Exam / Certificate Pathway"],
+}
+
 const API_BASE = (() => {
   const raw = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3003"
   const stripped = raw.replace(/\/$/, "").replace(/\/api\/?$/, "")
@@ -328,6 +383,10 @@ function SearchTabScreen({
 }) {
   const t = tSearch(locale)
   const [favouriteProgramIds, setFavouriteProgramIds] = useState<string[]>([])
+  const [showFilters, setShowFilters] = useState(false)
+  const [draftFilters, setDraftFilters] = useState<SearchFilterState>(DEFAULT_SEARCH_FILTERS)
+  const [appliedFilters, setAppliedFilters] = useState<SearchFilterState | null>(null)
+  const [collapsedFilterRegions, setCollapsedFilterRegions] = useState<string[]>([])
   const categories = ["STEM", "Sports", "Academic", "Art", "Music", "Others"] as const
   const categoryTabs = ["Music", "Art", "STEM", "Academic", "Sports", "Others"] as const
   const categoryIcons = {
@@ -353,8 +412,19 @@ function SearchTabScreen({
     const matchesCategory = !selectedCategory || program.category.toLowerCase() === selectedCategory.toLowerCase()
     const matchesQuery = !normalizedQuery
       || `${program.title} ${program.category} ${program.location}`.toLowerCase().includes(normalizedQuery)
-    return matchesCategory && matchesQuery
+    const minimumPrice = Number(appliedFilters?.minPrice || 0)
+    const maximumPrice = Number(appliedFilters?.maxPrice || Number.POSITIVE_INFINITY)
+    const matchesDistrict = !appliedFilters?.districts.length || appliedFilters.districts.includes(program.location)
+    const matchesPrice = !appliedFilters || (program.price >= minimumPrice && program.price <= maximumPrice)
+    const matchesRating = !appliedFilters?.ratings.length
+      || appliedFilters.ratings.includes(Math.round(program.rating))
+    return matchesCategory && matchesQuery && matchesDistrict && matchesPrice && matchesRating
   })
+
+  useEffect(() => {
+    navigation.setOptions({ tabBarStyle: showFilters ? { display: "none" } : undefined })
+    return () => navigation.setOptions({ tabBarStyle: undefined })
+  }, [navigation, showFilters])
 
   const selectCategory = (category: (typeof categories)[number]) => {
     setFlowAppState((prev) => ({ ...prev, selectedCategory: category }))
@@ -365,6 +435,174 @@ function SearchTabScreen({
       current.includes(programId)
         ? current.filter((id) => id !== programId)
         : [...current, programId],
+    )
+  }
+
+  const toggleFilterItem = (field: "districts" | "services", value: string) => {
+    setDraftFilters((current) => ({
+      ...current,
+      [field]: current[field].includes(value)
+        ? current[field].filter((item) => item !== value)
+        : [...current[field], value],
+    }))
+  }
+
+  const closeFilters = () => {
+    setDraftFilters(appliedFilters ?? DEFAULT_SEARCH_FILTERS)
+    setShowFilters(false)
+  }
+
+  const toggleFilterRegion = (region: string) => {
+    setCollapsedFilterRegions((current) =>
+      current.includes(region)
+        ? current.filter((item) => item !== region)
+        : [...current, region],
+    )
+  }
+
+  if (showFilters) {
+    return (
+      <SafeAreaView style={styles.searchFilterScreen} edges={["top", "bottom"]}>
+        <ScrollView
+          style={styles.page}
+          contentContainerStyle={styles.searchFilterPageContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Pressable accessibilityLabel="Close filter" style={styles.searchFilterCloseButton} onPress={closeFilters}>
+            <Feather name="x" size={18} color="#A3A3A3" />
+          </Pressable>
+          <Text style={styles.searchFilterPageTitle}>Filter</Text>
+
+          {SEARCH_FILTER_DISTRICTS.map((group) => {
+            const collapsed = collapsedFilterRegions.includes(group.region)
+            return (
+              <View key={group.region} style={styles.searchFilterRegion}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: !collapsed }}
+                  style={styles.searchFilterSectionHeadingRow}
+                  onPress={() => toggleFilterRegion(group.region)}
+                >
+                  <Text style={styles.searchFilterSectionTitle}>{group.region}</Text>
+                  <Feather name={collapsed ? "chevron-down" : "chevron-up"} size={14} color="#777777" />
+                </Pressable>
+                {!collapsed ? (
+                  <View style={styles.searchFilterChips}>
+                    {group.districts.map((district) => {
+                      const selected = draftFilters.districts.includes(district)
+                      return (
+                        <Pressable
+                          key={district}
+                          style={[styles.searchFilterChip, selected ? styles.searchFilterChipSelected : null]}
+                          onPress={() => toggleFilterItem("districts", district)}
+                        >
+                          <Text style={[styles.searchFilterChipText, selected ? styles.searchFilterChipTextSelected : null]}>
+                            {district}
+                          </Text>
+                        </Pressable>
+                      )
+                    })}
+                  </View>
+                ) : null}
+              </View>
+            )
+          })}
+
+          <View style={styles.searchFilterDivider} />
+          <View style={styles.searchFilterSection}>
+            <Text style={styles.searchFilterSectionTitle}>Price</Text>
+            <View style={styles.searchFilterPriceRow}>
+              <View style={styles.searchFilterPriceField}>
+                <Text style={styles.searchFilterPriceLabel}>Minimum price</Text>
+                <View style={styles.searchFilterPriceInputRow}>
+                  <Text style={styles.searchFilterCurrency}>HKD</Text>
+                  <TextInput
+                    value={draftFilters.minPrice}
+                    onChangeText={(minPrice) => setDraftFilters((current) => ({ ...current, minPrice }))}
+                    keyboardType="number-pad"
+                    style={styles.searchFilterPriceInput}
+                  />
+                </View>
+              </View>
+              <View style={styles.searchFilterPriceField}>
+                <Text style={styles.searchFilterPriceLabel}>Maximum price</Text>
+                <View style={styles.searchFilterPriceInputRow}>
+                  <Text style={styles.searchFilterCurrency}>HKD</Text>
+                  <TextInput
+                    value={draftFilters.maxPrice}
+                    onChangeText={(maxPrice) => setDraftFilters((current) => ({ ...current, maxPrice }))}
+                    keyboardType="number-pad"
+                    style={styles.searchFilterPriceInput}
+                  />
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.searchFilterDivider} />
+          <View style={styles.searchFilterSection}>
+            <Text style={styles.searchFilterSectionTitle}>Rating</Text>
+            <View style={styles.searchFilterChips}>
+              {[1, 2, 3, 4, 5].map((rating) => {
+                const selected = draftFilters.ratings.includes(rating)
+                return (
+                  <Pressable
+                    key={rating}
+                    style={[styles.searchFilterChip, styles.searchFilterRatingChip, selected ? styles.searchFilterChipSelected : null]}
+                    onPress={() => setDraftFilters((current) => ({
+                      ...current,
+                      ratings: current.ratings.includes(rating)
+                        ? current.ratings.filter((item) => item !== rating)
+                        : [...current.ratings, rating],
+                    }))}
+                  >
+                    <MaterialCommunityIcons
+                      name={selected ? "star" : "star-outline"}
+                      size={12}
+                      color={selected ? "#222222" : "#8A8A8A"}
+                    />
+                    <Text style={[styles.searchFilterChipText, selected ? styles.searchFilterChipTextSelected : null]}>
+                      {rating}
+                    </Text>
+                  </Pressable>
+                )
+              })}
+            </View>
+          </View>
+
+          <View style={styles.searchFilterDivider} />
+          <View style={styles.searchFilterSection}>
+            <Text style={styles.searchFilterSectionTitle}>Service</Text>
+            <View style={styles.searchFilterChips}>
+              {SEARCH_FILTER_SERVICES.map((service) => {
+                const selected = draftFilters.services.includes(service)
+                return (
+                  <Pressable
+                    key={service}
+                    style={[styles.searchFilterChip, selected ? styles.searchFilterChipSelected : null]}
+                    onPress={() => toggleFilterItem("services", service)}
+                  >
+                    <Text style={[styles.searchFilterChipText, selected ? styles.searchFilterChipTextSelected : null]}>
+                      {service}
+                    </Text>
+                  </Pressable>
+                )
+              })}
+            </View>
+          </View>
+
+          <Pressable
+            style={styles.searchFilterApplyButton}
+            onPress={() => {
+              setAppliedFilters(draftFilters)
+              setShowFilters(false)
+            }}
+          >
+            <Text style={styles.searchFilterApplyButtonText}>Apply filter</Text>
+          </Pressable>
+        </ScrollView>
+      </SafeAreaView>
     )
   }
 
@@ -412,7 +650,7 @@ function SearchTabScreen({
               })}
             </ScrollView>
 
-            <Pressable style={styles.searchFilterButton}>
+            <Pressable style={styles.searchFilterButton} onPress={() => setShowFilters(true)}>
               <Text style={styles.searchFilterText}>Filter</Text>
             </Pressable>
 
@@ -454,7 +692,7 @@ function SearchTabScreen({
                       <View style={styles.searchResultTitleRow}>
                         <Text style={styles.searchResultTitle} numberOfLines={1}>{program.title}</Text>
                         <View style={styles.ratingRow}>
-                          <Feather name="star" size={14} color="#222222" fill="#222222" />
+                          <MaterialCommunityIcons name="star" size={15} color="#222222" />
                           <Text style={styles.searchResultRating}>{program.rating.toFixed(2)}</Text>
                         </View>
                       </View>
@@ -2476,6 +2714,62 @@ const styles = StyleSheet.create({
   searchCategoryTabTextActive: { color: "#222222" },
   searchFilterButton: { alignSelf: "flex-start", paddingVertical: 1 },
   searchFilterText: { fontSize: 14, color: "#343434", textDecorationLine: "underline" },
+  searchFilterScreen: { flex: 1, backgroundColor: "#FFFFFF" },
+  searchFilterPageContent: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 20 },
+  searchFilterCloseButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#F1F1F1",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 18,
+  },
+  searchFilterPageTitle: { fontSize: 20, fontWeight: "700", color: "#111111", marginBottom: 16 },
+  searchFilterRegion: { borderTopWidth: 1, borderTopColor: "#E9E9E9", paddingTop: 15, paddingBottom: 8, gap: 10 },
+  searchFilterSection: { paddingVertical: 14, gap: 12 },
+  searchFilterSectionHeadingRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  searchFilterSectionTitle: { fontSize: 14, fontWeight: "700", color: "#222222" },
+  searchFilterChips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  searchFilterChip: {
+    minHeight: 24,
+    borderRadius: 3,
+    backgroundColor: "#EFEFEF",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchFilterChipSelected: { backgroundColor: "#C8F1EF" },
+  searchFilterChipText: { fontSize: 11, fontWeight: "500", color: "#5E5E5E" },
+  searchFilterChipTextSelected: { fontWeight: "700", color: "#222222" },
+  searchFilterDivider: { height: 1, backgroundColor: "#E9E9E9" },
+  searchFilterPriceRow: { flexDirection: "row", gap: 12 },
+  searchFilterPriceField: {
+    flex: 1,
+    minHeight: 66,
+    borderWidth: 1,
+    borderColor: "#D7D7D7",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    justifyContent: "center",
+    gap: 4,
+  },
+  searchFilterPriceLabel: { fontSize: 10, color: "#8A8A8A" },
+  searchFilterPriceInputRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  searchFilterCurrency: { fontSize: 13, fontWeight: "600", color: "#343434" },
+  searchFilterPriceInput: { flex: 1, padding: 0, fontSize: 13, fontWeight: "600", color: "#343434" },
+  searchFilterRatingChip: { flexDirection: "row", minWidth: 40, gap: 4 },
+  searchFilterApplyButton: {
+    minHeight: 46,
+    borderRadius: 7,
+    backgroundColor: "#222222",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  searchFilterApplyButtonText: { fontSize: 13, fontWeight: "600", color: "#FFFFFF" },
   searchResultsList: { gap: 18 },
   searchResultCard: {
     width: "100%",
