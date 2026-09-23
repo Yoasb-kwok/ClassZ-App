@@ -1136,6 +1136,31 @@ type ClassScheduleOption = {
   language: string
   address: string
   coachName: string
+  lessonDates: LessonDate[]
+}
+
+type LessonDate = {
+  lesson: number
+  dateLabel: string
+  weekday: string
+  time: string
+}
+
+const LESSON_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const
+const LESSON_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const
+// 8 lessons roughly every 5 days across the option date range
+const LESSON_DATE_OFFSETS = [0, 5, 10, 15, 20, 25, 30, 36] as const
+
+function buildLessonDates(startDay: number): LessonDate[] {
+  return LESSON_DATE_OFFSETS.map((offset, index) => {
+    const date = new Date(2026, 9, startDay + offset)
+    return {
+      lesson: index + 1,
+      dateLabel: `${LESSON_MONTHS[date.getMonth()]} ${date.getDate()}`,
+      weekday: LESSON_WEEKDAYS[date.getDay()],
+      time: "4:30 PM",
+    }
+  })
 }
 
 function formatAmount(value: number): string {
@@ -1152,6 +1177,7 @@ function ClassOptionScreen({
   setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
 }) {
   const active = flowAppState.programs.find((p) => p.id === flowAppState.selectedProgramId) || flowAppState.programs[0]
+  const [expandedOptionIds, setExpandedOptionIds] = useState<string[]>([])
   const optionAvatars = [
     FIGMA_ASSETS.reservation.host,
     FIGMA_ASSETS.reservation.coach,
@@ -1170,6 +1196,7 @@ function ClassOptionScreen({
       language: "Cantonese",
       address: "Shop 1B, Class Mall, Central, Hong Kong",
       coachName: "Athena Yeung",
+      lessonDates: buildLessonDates(23),
     },
     {
       id: `${active.id}-oct-25`,
@@ -1182,8 +1209,17 @@ function ClassOptionScreen({
       language: "Cantonese",
       address: "Shop 1B, Class Mall, Central, Hong Kong",
       coachName: "Athena Yeung",
+      lessonDates: buildLessonDates(25),
     },
   ]
+
+  const toggleOptionExpanded = (optionId: string) => {
+    setExpandedOptionIds((current) =>
+      current.includes(optionId)
+        ? current.filter((id) => id !== optionId)
+        : [...current, optionId],
+    )
+  }
 
   return (
     <SafeAreaView style={styles.classOptionScreen} edges={["top", "bottom"]}>
@@ -1278,10 +1314,59 @@ function ClassOptionScreen({
               </View>
             </View>
 
-            <View style={styles.classOptionDatesRow}>
+            {expandedOptionIds.includes(option.id) ? (
+              <>
+                <View style={styles.classOptionCardDivider} />
+                <View style={styles.classOptionLessonList}>
+                  {option.lessonDates.map((lessonDate, index) => (
+                    <View
+                      key={lessonDate.lesson}
+                      style={[
+                        styles.classOptionLessonRow,
+                        index < option.lessonDates.length - 1
+                          ? styles.classOptionLessonRowDivider
+                          : null,
+                      ]}
+                    >
+                      <Text style={styles.classOptionLessonNumber}>Lesson {lessonDate.lesson}</Text>
+                      <Text style={styles.classOptionLessonDate}>
+                        {lessonDate.dateLabel} · {lessonDate.weekday}
+                      </Text>
+                      <Text style={styles.classOptionLessonTime}>{lessonDate.time}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Reserve ${option.lessonCount} lessons starting ${option.dateRange}`}
+                  style={styles.classOptionReserveButton}
+                  onPress={(event) => {
+                    event.stopPropagation()
+                    setFlowAppState((prev) => ({ ...prev, selectedProgramId: active.id }))
+                    navigation.navigate("ReservationApp")
+                  }}
+                >
+                  <Text style={styles.classOptionReserveButtonText}>Reserve</Text>
+                </Pressable>
+              </>
+            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={expandedOptionIds.includes(option.id) ? "Hide full dates" : "View full dates"}
+              accessibilityState={{ expanded: expandedOptionIds.includes(option.id) }}
+              style={styles.classOptionDatesRow}
+              onPress={(event) => {
+                event.stopPropagation()
+                toggleOptionExpanded(option.id)
+              }}
+            >
               <Text style={styles.classOptionDatesText}>View full dates</Text>
-              <Feather name="chevron-down" size={14} color="#6B6B6B" />
-            </View>
+              <Feather
+                name={expandedOptionIds.includes(option.id) ? "chevron-up" : "chevron-down"}
+                size={14}
+                color="#6B6B6B"
+              />
+            </Pressable>
           </Pressable>
         ))}
       </ScrollView>
@@ -3672,6 +3757,23 @@ const styles = StyleSheet.create({
   classOptionCoachText: { fontSize: FONT.caption, color: "#6B6B6B" },
   classOptionDatesRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
   classOptionDatesText: { fontSize: FONT.caption, color: "#6B6B6B" },
+  classOptionLessonList: { width: "100%" },
+  classOptionLessonRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9 },
+  classOptionLessonRowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#E5E5E5" },
+  classOptionLessonNumber: { width: 78, fontSize: FONT.secondary, fontWeight: "700", color: "#222222" },
+  classOptionLessonDate: { flex: 1, fontSize: FONT.secondary, color: "#6B6B6B" },
+  classOptionLessonTime: { fontSize: FONT.secondary, color: "#6B6B6B" },
+  classOptionReserveButton: {
+    width: "65%",
+    minHeight: 46,
+    borderRadius: 10,
+    backgroundColor: "#222222",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    marginTop: 14,
+  },
+  classOptionReserveButtonText: { fontSize: FONT.body, fontWeight: "600", color: "#FFFFFF" },
   reviewScreen: { flex: 1, backgroundColor: "#FFFFFF" },
   reviewHeader: {
     height: 64,
