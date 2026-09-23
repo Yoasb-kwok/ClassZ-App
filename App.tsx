@@ -73,6 +73,8 @@ type RootStackParamList = {
   ForgotPassword: { role: AuthRole }
   AppTabs: undefined
   CentreDetailApp: undefined
+  ReviewApp: undefined
+  MemberProfileApp: { memberId: MemberProfileId }
   ReservationApp: undefined
   LearningRecordsApp: undefined
   CompanionApp: undefined
@@ -104,6 +106,84 @@ type SearchFilterState = {
   maxPrice: string
   ratings: number[]
   services: string[]
+}
+
+type MemberProfileId = "jessica" | "athena"
+
+type MemberProfile = {
+  name: string
+  gender: "female" | "male"
+  tenure: string
+  centre: string
+  role: string
+  bio: string
+  imageUri: string
+  skills: string[]
+  accreditation: Array<{
+    year: string
+    entries: Array<{ subject: string; experience: string; organisation: string }>
+  }>
+  experience: Array<{
+    year: string
+    role: string
+    duration: string
+    organisation: string
+  }>
+}
+
+const MEMBER_PROFILES: Record<MemberProfileId, MemberProfile> = {
+  jessica: {
+    name: "Jessica Lam",
+    gender: "female",
+    tenure: "4 Years on ClassZ",
+    centre: "ClassZ Playgroup Bright Kids Drawing Centre",
+    role: "Centre Manager",
+    bio: "I'm Jessica Lam, an experienced centre manager committed to creating a welcoming environment where every child can learn confidently and enjoy meaningful progress.",
+    imageUri: FIGMA_ASSETS.reservation.host,
+    skills: ["Leadership", "Child Care", "SEN Support"],
+    accreditation: [
+      {
+        year: "2023",
+        entries: [
+          { subject: "Child Care", experience: "8 years experience", organisation: "Registered member at Hong Kong Childcare Association" },
+          { subject: "SEN Support", experience: "5 years experience", organisation: "Certified SEN Learning Support Practitioner" },
+        ],
+      },
+      {
+        year: "2021",
+        entries: [
+          { subject: "Centre Management", experience: "6 years experience", organisation: "ClassZ Professional Development Centre" },
+        ],
+      },
+    ],
+    experience: [
+      { year: "2023", role: "Centre Manager", duration: "4 years experience", organisation: "ClassZ Playgroup Bright Kids Drawing Centre" },
+      { year: "2019", role: "Program Coordinator", duration: "4 years experience", organisation: "ABC ClassZ International School" },
+    ],
+  },
+  athena: {
+    name: "Athena Yeung",
+    gender: "female",
+    tenure: "2 Years on ClassZ",
+    centre: "ClassZ Playgroup Bright Kids Drawing Centre",
+    role: "Program Coach",
+    bio: "I'm Athena Wang, an experienced music coach with a specialization in piano. For over 15 years, I've had the privilege of helping students of all ages and skill levels develop their musical talents and reach new heights.",
+    imageUri: FIGMA_ASSETS.reservation.coach,
+    skills: ["Piano", "Violin", "Flute"],
+    accreditation: ["2022", "2021", "2020"].map((year) => ({
+      year,
+      entries: ["Flute", "Flute", "Flute"].map((subject) => ({
+        subject,
+        experience: "10 years experience",
+        organisation: "Registered member at ABC Violin Association",
+      })),
+    })),
+    experience: [
+      { year: "2022", role: "Music Teacher", duration: "10 months experience", organisation: "ABC ClassZ International School" },
+      { year: "2021", role: "Music Teacher", duration: "2 years experience", organisation: "ABC ClassZ International School" },
+      { year: "2019", role: "Music Teacher", duration: "2 years experience", organisation: "ABC ClassZ International School" },
+    ],
+  },
 }
 
 const SEARCH_FILTER_DISTRICTS = [
@@ -845,7 +925,10 @@ function CentreDetailScreen({
           <View style={styles.centreDetailRatingRow}>
             <MaterialCommunityIcons name="star" size={15} color="#222222" />
             <Text style={styles.centreDetailRating}>{centre.rating.toFixed(1)}</Text>
-            <Text style={styles.centreDetailReviewLink}>· {centre.reviewCount} reviews</Text>
+            <Text style={styles.centreDetailReviewSeparator}>·</Text>
+            <Pressable accessibilityRole="button" onPress={() => navigation.navigate("ReviewApp")}>
+              <Text style={styles.centreDetailReviewLink}>{centre.reviewCount} reviews</Text>
+            </Pressable>
           </View>
           <View style={styles.centreDetailAddressRow}>
             <Feather name="map-pin" size={14} color="#4B5563" />
@@ -859,16 +942,26 @@ function CentreDetailScreen({
           <View style={styles.centreDetailDivider} />
           <Text style={styles.centreDetailSectionTitle}>Members</Text>
           <View style={styles.centreDetailMembersRow}>
-            <View style={styles.centreDetailMember}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open Jessica Lam member profile"
+              style={styles.centreDetailMember}
+              onPress={() => navigation.navigate("MemberProfileApp", { memberId: "jessica" })}
+            >
               <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.centreDetailMemberImage} />
               <Text style={styles.centreDetailMemberName}>Jessica Lam</Text>
               <Text style={styles.centreDetailMemberRole}>Centre Manager</Text>
-            </View>
-            <View style={styles.centreDetailMember}>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open Athena Yeung member profile"
+              style={styles.centreDetailMember}
+              onPress={() => navigation.navigate("MemberProfileApp", { memberId: "athena" })}
+            >
               <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.centreDetailMemberImage} />
               <Text style={styles.centreDetailMemberName}>Athena Yeung</Text>
               <Text style={styles.centreDetailMemberRole}>Program Coach</Text>
-            </View>
+            </Pressable>
           </View>
 
           <View style={styles.centreDetailDivider} />
@@ -952,6 +1045,161 @@ function CentreDetailScreen({
           <Text style={styles.centreDetailProgramsButtonText}>Programs</Text>
         </Pressable>
       </View>
+    </SafeAreaView>
+  )
+}
+
+function ReviewScreen({ navigation, flowAppState }: { navigation: any; flowAppState: FlowAppState }) {
+  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId)
+    || flowAppState.centres[0]
+  const reviews = [
+    { id: "review-1", rating: 5, date: "Mar 04, 2026" },
+    { id: "review-2", rating: 4, date: "Mar 04, 2026" },
+    { id: "review-3", rating: 3, date: "Mar 04, 2026" },
+    { id: "review-4", rating: 4, date: "Mar 04, 2026" },
+    { id: "review-5", rating: 3, date: "Mar 04, 2026" },
+  ]
+
+  return (
+    <SafeAreaView style={styles.reviewScreen} edges={["top", "bottom"]}>
+      <View style={styles.reviewHeader}>
+        <Pressable
+          accessibilityLabel="Back"
+          hitSlop={10}
+          style={styles.reviewBackButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Feather name="arrow-left" size={19} color="#777777" />
+        </Pressable>
+        <Text style={styles.reviewHeaderTitle}>Review</Text>
+        <View style={styles.reviewHeaderSpacer} />
+      </View>
+
+      <ScrollView
+        style={styles.page}
+        contentContainerStyle={styles.reviewContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {reviews.map((review) => (
+          <View key={review.id} style={styles.reviewCard}>
+            <View style={styles.reviewCardHeader}>
+              <View style={styles.reviewAuthorRow}>
+                <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.reviewAvatar} resizeMode="cover" />
+                <Text style={styles.reviewAuthor}>Jacky Lam</Text>
+              </View>
+              <View style={styles.reviewScoreRow} accessibilityLabel={`${review.rating} out of 5 stars`}>
+                {Array.from({ length: review.rating }).map((_, index) => (
+                  <MaterialCommunityIcons key={index} name="star" size={19} color="#222222" />
+                ))}
+                <Text style={styles.reviewScore}>{review.rating}</Text>
+              </View>
+              <Text style={styles.reviewDate}>{review.date}</Text>
+            </View>
+            <Text style={styles.reviewBody}>
+              {`This is ${centre.name}! Our centre is designed to provide a stimulating and supportive environment where learners of all ages can engage.`}
+            </Text>
+          </View>
+        ))}
+      </ScrollView>
+    </SafeAreaView>
+  )
+}
+
+function MemberProfileScreen({ navigation, route }: { navigation: any; route: any }) {
+  const memberId = route.params?.memberId as MemberProfileId
+  const member = MEMBER_PROFILES[memberId] || MEMBER_PROFILES.athena
+
+  return (
+    <SafeAreaView style={styles.memberProfileScreen} edges={["top", "bottom"]}>
+      <View style={styles.memberProfileHeader}>
+        <Pressable
+          accessibilityLabel="Back"
+          hitSlop={10}
+          style={styles.memberProfileBackButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Feather name="arrow-left" size={18} color="#777777" />
+        </Pressable>
+        <Text style={styles.memberProfileHeaderTitle}>Member Profile</Text>
+        <View style={styles.memberProfileHeaderSpacer} />
+      </View>
+
+      <ScrollView
+        style={styles.page}
+        contentContainerStyle={styles.memberProfileContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.memberProfileSummaryCard}>
+          <View style={styles.memberProfileIdentityRow}>
+            <Image source={{ uri: member.imageUri }} style={styles.memberProfileAvatar} resizeMode="cover" />
+            <View style={styles.memberProfileIdentityCopy}>
+              <View style={styles.memberProfileNameRow}>
+                <Text style={styles.memberProfileName}>{member.name}</Text>
+                <MaterialCommunityIcons
+                  name={member.gender === "female" ? "gender-female" : "gender-male"}
+                  size={16}
+                  color="#0ABAB5"
+                />
+              </View>
+              <Text style={styles.memberProfileTenure}>{member.tenure}</Text>
+              <Text style={styles.memberProfileCentre}>{member.centre}</Text>
+            </View>
+          </View>
+          <Text style={styles.memberProfileBio}>{member.bio}</Text>
+        </View>
+
+        <View style={styles.memberProfileSection}>
+          <Text style={styles.memberProfileSectionTitle}>Skills</Text>
+          <View style={styles.memberProfileSkillRow}>
+            {member.skills.map((skill) => (
+              <View key={skill} style={styles.memberProfileSkillChip}>
+                <Text style={styles.memberProfileSkillText}>{skill}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.memberProfileSection}>
+          <Text style={styles.memberProfileSectionTitle}>Accreditation</Text>
+          <View style={styles.memberProfileTimelineCard}>
+            {member.accreditation.map((group) => (
+              <View key={group.year} style={styles.memberProfileTimelineGroup}>
+                <Text style={styles.memberProfileTimelineYear}>{group.year}</Text>
+                <View style={styles.memberProfileTimelineRail}>
+                  {group.entries.map((entry, index) => (
+                    <View key={`${group.year}-${entry.subject}-${index}`} style={styles.memberProfileTimelineEntry}>
+                      <View style={styles.memberProfileTimelineDot} />
+                      <Text style={styles.memberProfileTimelineRole}>{entry.subject}</Text>
+                      <Text style={styles.memberProfileTimelineDetail}>{entry.experience}</Text>
+                      <Text style={styles.memberProfileTimelineMeta}>{entry.organisation}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.memberProfileSection}>
+          <Text style={styles.memberProfileSectionTitle}>Experience</Text>
+          <View style={styles.memberProfileTimelineCard}>
+            {member.experience.map((entry) => (
+              <View key={`${entry.year}-${entry.role}`} style={styles.memberProfileExperienceGroup}>
+                <Text style={styles.memberProfileTimelineYear}>{entry.year}</Text>
+                <View style={styles.memberProfileExperienceCopy}>
+                  <Text style={styles.memberProfileTimelineRole}>{entry.role}</Text>
+                  <Text style={styles.memberProfileTimelineDetail}>{entry.duration}</Text>
+                  <Text style={styles.memberProfileTimelineMeta}>{entry.organisation}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <Text style={styles.memberProfileDisclaimer}>
+          Note: Coach profiles and experience data are self-claimed. ClassZ is not responsible for the accuracy of this information.
+        </Text>
+      </ScrollView>
     </SafeAreaView>
   )
 }
@@ -2431,6 +2679,12 @@ export default function App() {
                 />
               )}
             </Stack.Screen>
+            <Stack.Screen name="ReviewApp" options={{ headerShown: false }}>
+              {(props) => <ReviewScreen {...props} flowAppState={flowAppState} />}
+            </Stack.Screen>
+            <Stack.Screen name="MemberProfileApp" options={{ headerShown: false }}>
+              {(props) => <MemberProfileScreen {...props} />}
+            </Stack.Screen>
             <Stack.Screen name="ReservationApp" options={{ title: "Reservation" }}>
               {(props) => <ReservationAppScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
@@ -2933,14 +3187,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 18,
   },
-  searchFilterPageTitle: { fontSize: 20, fontWeight: "700", color: "#111111", marginBottom: 16 },
+  searchFilterPageTitle: { fontSize: 22, fontWeight: "700", color: "#111111", marginBottom: 16 },
   searchFilterRegion: { borderTopWidth: 1, borderTopColor: "#E9E9E9", paddingTop: 15, paddingBottom: 8, gap: 10 },
   searchFilterSection: { paddingVertical: 14, gap: 12 },
   searchFilterSectionHeadingRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  searchFilterSectionTitle: { fontSize: 14, fontWeight: "700", color: "#222222" },
+  searchFilterSectionTitle: { fontSize: 16, fontWeight: "700", color: "#222222" },
   searchFilterChips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   searchFilterChip: {
-    minHeight: 24,
+    minHeight: 28,
     borderRadius: 3,
     backgroundColor: "#EFEFEF",
     paddingHorizontal: 8,
@@ -2949,7 +3203,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   searchFilterChipSelected: { backgroundColor: "#C8F1EF" },
-  searchFilterChipText: { fontSize: 11, fontWeight: "500", color: "#5E5E5E" },
+  searchFilterChipText: { fontSize: 12, fontWeight: "500", color: "#5E5E5E" },
   searchFilterChipTextSelected: { fontWeight: "700", color: "#222222" },
   searchFilterDivider: { height: 1, backgroundColor: "#E9E9E9" },
   searchFilterPriceRow: { flexDirection: "row", gap: 12 },
@@ -2964,10 +3218,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 4,
   },
-  searchFilterPriceLabel: { fontSize: 10, color: "#8A8A8A" },
+  searchFilterPriceLabel: { fontSize: 12, color: "#777777" },
   searchFilterPriceInputRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  searchFilterCurrency: { fontSize: 13, fontWeight: "600", color: "#343434" },
-  searchFilterPriceInput: { flex: 1, padding: 0, fontSize: 13, fontWeight: "600", color: "#343434" },
+  searchFilterCurrency: { fontSize: 14, fontWeight: "600", color: "#343434" },
+  searchFilterPriceInput: { flex: 1, padding: 0, fontSize: 14, fontWeight: "600", color: "#343434" },
   searchFilterRatingChip: { flexDirection: "row", minWidth: 40, gap: 4 },
   searchFilterApplyButton: {
     minHeight: 46,
@@ -2977,7 +3231,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 2,
   },
-  searchFilterApplyButtonText: { fontSize: 13, fontWeight: "600", color: "#FFFFFF" },
+  searchFilterApplyButtonText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
   searchResultsList: { gap: 18 },
   searchResultCard: {
     width: "100%",
@@ -3069,25 +3323,137 @@ const styles = StyleSheet.create({
   centreDetailTitleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   centreDetailLogoWrap: { width: 36, height: 36, borderRadius: 18, overflow: "hidden", backgroundColor: "#F4AE00" },
   centreDetailLogo: { width: "100%", height: "100%" },
-  centreDetailTitle: { flex: 1, fontSize: 18, lineHeight: 22, fontWeight: "700", color: "#222222" },
+  centreDetailTitle: { flex: 1, fontSize: 19, lineHeight: 24, fontWeight: "700", color: "#222222" },
   centreDetailRatingRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  centreDetailRating: { fontSize: 12, fontWeight: "600", color: "#222222" },
-  centreDetailReviewLink: { fontSize: 12, color: "#343434", textDecorationLine: "underline" },
+  centreDetailRating: { fontSize: 13, fontWeight: "600", color: "#222222" },
+  centreDetailReviewSeparator: { fontSize: 13, color: "#343434" },
+  centreDetailReviewLink: { fontSize: 13, color: "#343434", textDecorationLine: "underline" },
   centreDetailAddressRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  centreDetailAddress: { flex: 1, fontSize: 11, color: "#4B5563" },
-  centreDetailDescription: { fontSize: 11, lineHeight: 16, color: "#6B7280", marginTop: 10 },
+  centreDetailAddress: { flex: 1, fontSize: 12, lineHeight: 17, color: "#4B5563" },
+  centreDetailDescription: { fontSize: 13, lineHeight: 19, color: "#5E6775", marginTop: 10 },
   centreDetailDivider: { height: 1, backgroundColor: "#E9E9E9", marginVertical: 4 },
-  centreDetailSectionTitle: { fontSize: 14, fontWeight: "700", color: "#222222" },
+  centreDetailSectionTitle: { fontSize: 16, fontWeight: "700", color: "#222222" },
   centreDetailMembersRow: { flexDirection: "row", gap: 12 },
   centreDetailMember: { flex: 1, gap: 4 },
   centreDetailMemberImage: { width: "100%", height: 138, borderRadius: 8, backgroundColor: "#E5E7EB" },
-  centreDetailMemberName: { fontSize: 12, fontWeight: "600", color: "#222222" },
-  centreDetailMemberRole: { fontSize: 10, color: "#777777" },
+  centreDetailMemberName: { fontSize: 14, fontWeight: "600", color: "#222222" },
+  centreDetailMemberRole: { fontSize: 12, color: "#6B6B6B" },
+  reviewScreen: { flex: 1, backgroundColor: "#FFFFFF" },
+  reviewHeader: {
+    height: 64,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  reviewBackButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F1F2F2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewHeaderTitle: { fontSize: 17, fontWeight: "600", color: "#222222" },
+  reviewHeaderSpacer: { width: 40, height: 40 },
+  reviewContent: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 34, gap: 20 },
+  reviewCard: {
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    gap: 13,
+    shadowColor: "#000000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 5 },
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  reviewCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  reviewAuthorRow: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 },
+  reviewAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#E5E7EB" },
+  reviewAuthor: { fontSize: 14, fontWeight: "600", color: "#5E5E5E" },
+  reviewScoreRow: { flexDirection: "row", alignItems: "center", gap: 2 },
+  reviewScore: { marginLeft: 1, fontSize: 14, color: "#343434" },
+  reviewDate: { fontSize: 12, color: "#6B6B6B" },
+  reviewBody: { fontSize: 14, lineHeight: 20, color: "#5E5E5E" },
+  memberProfileScreen: { flex: 1, backgroundColor: "#FFFFFF" },
+  memberProfileHeader: {
+    height: 58,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  memberProfileBackButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#F1F2F2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  memberProfileHeaderTitle: { fontSize: 17, fontWeight: "600", color: "#222222" },
+  memberProfileHeaderSpacer: { width: 34, height: 34 },
+  memberProfileContent: { paddingHorizontal: 16, paddingBottom: 44, gap: 18 },
+  memberProfileSummaryCard: {
+    borderRadius: 8,
+    padding: 16,
+    gap: 14,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 9,
+    elevation: 3,
+  },
+  memberProfileIdentityRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  memberProfileAvatar: { width: 86, height: 86, borderRadius: 43, backgroundColor: "#E5E7EB" },
+  memberProfileIdentityCopy: { flex: 1, gap: 5 },
+  memberProfileNameRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  memberProfileName: { fontSize: 17, fontWeight: "700", color: "#222222" },
+  memberProfileTenure: { fontSize: 12, fontWeight: "600", color: "#444444" },
+  memberProfileCentre: { fontSize: 11, lineHeight: 15, color: "#6B6B6B" },
+  memberProfileBio: { fontSize: 13, lineHeight: 18, color: "#5E5E5E" },
+  memberProfileSection: { gap: 11 },
+  memberProfileSectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#222222",
+    paddingBottom: 9,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#DDDDDD",
+  },
+  memberProfileSkillRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 14 },
+  memberProfileSkillChip: { minWidth: 60, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 4, backgroundColor: "#CFF3F1", alignItems: "center" },
+  memberProfileSkillText: { fontSize: 12, fontWeight: "600", color: "#3F5756" },
+  memberProfileTimelineCard: {
+    borderRadius: 8,
+    padding: 16,
+    gap: 14,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 9,
+    elevation: 3,
+  },
+  memberProfileTimelineGroup: { gap: 7 },
+  memberProfileTimelineYear: { fontSize: 14, fontWeight: "700", color: "#222222" },
+  memberProfileTimelineRail: { marginLeft: 12, paddingLeft: 18, borderLeftWidth: 1, borderLeftColor: "#A6A6A6", gap: 12 },
+  memberProfileTimelineEntry: { position: "relative", gap: 3 },
+  memberProfileTimelineDot: { position: "absolute", left: -21, top: 3, width: 5, height: 5, borderRadius: 3, backgroundColor: "#777777" },
+  memberProfileTimelineRole: { fontSize: 13, fontWeight: "700", color: "#222222" },
+  memberProfileTimelineDetail: { fontSize: 12, color: "#444444" },
+  memberProfileTimelineMeta: { fontSize: 11, lineHeight: 15, color: "#6B6B6B" },
+  memberProfileExperienceGroup: { gap: 5 },
+  memberProfileExperienceCopy: { marginLeft: 28, gap: 3 },
+  memberProfileDisclaimer: { marginHorizontal: 16, fontSize: 11, lineHeight: 16, color: "#5E5E5E" },
   centreDetailServices: { gap: 14 },
   centreDetailServiceRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   centreDetailServiceCopy: { flex: 1, gap: 2 },
-  centreDetailServiceTitle: { fontSize: 12, fontWeight: "700", color: "#222222" },
-  centreDetailServiceDescription: { fontSize: 10, lineHeight: 14, color: "#6B7280" },
+  centreDetailServiceTitle: { fontSize: 14, fontWeight: "700", color: "#222222" },
+  centreDetailServiceDescription: { fontSize: 12, lineHeight: 17, color: "#5E6775" },
   centreDetailMap: {
     width: "100%",
     height: 190,
@@ -3101,7 +3467,7 @@ const styles = StyleSheet.create({
   centreDetailMapRoad: { position: "absolute", backgroundColor: "#FFFFFF", borderColor: "#D8DEE3", borderWidth: 1 },
   centreDetailMapRoadHorizontal: { left: -20, right: -20, top: 86, height: 24, transform: [{ rotate: "-8deg" }] },
   centreDetailMapRoadVertical: { top: -20, bottom: -20, left: "48%", width: 22, transform: [{ rotate: "12deg" }] },
-  centreDetailMapLabel: { position: "absolute", fontSize: 10, fontWeight: "600", color: "#64748B" },
+  centreDetailMapLabel: { position: "absolute", fontSize: 12, fontWeight: "600", color: "#64748B" },
   centreDetailMapPin: {
     position: "absolute",
     left: "50%",
@@ -3143,12 +3509,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 3,
   },
-  centreDetailSuggestionBadgeText: { fontSize: 9, fontWeight: "600", color: "#222222" },
+  centreDetailSuggestionBadgeText: { fontSize: 11, fontWeight: "600", color: "#222222" },
   centreDetailSuggestionBody: { padding: 10, gap: 6 },
   centreDetailSuggestionTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  centreDetailSuggestionTitle: { flex: 1, fontSize: 11, fontWeight: "700", color: "#222222" },
-  centreDetailSuggestionRating: { fontSize: 10, color: "#222222" },
-  centreDetailSuggestionMeta: { fontSize: 10, color: "#6B7280" },
+  centreDetailSuggestionTitle: { flex: 1, fontSize: 13, fontWeight: "700", color: "#222222" },
+  centreDetailSuggestionRating: { fontSize: 12, color: "#222222" },
+  centreDetailSuggestionMeta: { fontSize: 12, color: "#5E6775" },
   centreDetailFooter: {
     minHeight: 72,
     borderTopWidth: 1,
@@ -3161,8 +3527,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 16,
   },
-  centreDetailFooterPrice: { fontSize: 12, color: "#343434" },
-  centreDetailFooterAvailability: { marginTop: 4, fontSize: 10, color: "#777777" },
+  centreDetailFooterPrice: { fontSize: 14, color: "#343434" },
+  centreDetailFooterAvailability: { marginTop: 4, fontSize: 12, color: "#6B6B6B" },
   centreDetailProgramsButton: {
     flex: 1,
     maxWidth: 190,
@@ -3172,7 +3538,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  centreDetailProgramsButtonText: { fontSize: 12, fontWeight: "600", color: "#FFFFFF" },
+  centreDetailProgramsButtonText: { fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
   kpiRow: { flexDirection: "row", gap: 10 },
   kpiCard: { flex: 1, borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff", padding: 12 },
   kpiValue: { fontSize: 20, fontWeight: "700", color: "#111827" },
