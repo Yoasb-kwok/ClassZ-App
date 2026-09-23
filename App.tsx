@@ -75,6 +75,7 @@ type RootStackParamList = {
   CentreDetailApp: undefined
   ReviewApp: undefined
   MemberProfileApp: { memberId: MemberProfileId }
+  ProgramListApp: undefined
   ReservationApp: undefined
   LearningRecordsApp: undefined
   CompanionApp: undefined
@@ -1038,13 +1039,86 @@ function CentreDetailScreen({
           disabled={!relatedProgram}
           onPress={() => {
             if (!relatedProgram) return
-            setFlowAppState((prev) => ({ ...prev, selectedProgramId: relatedProgram.id }))
-            navigation.navigate("ReservationApp")
+            navigation.navigate("ProgramListApp")
           }}
         >
           <Text style={styles.centreDetailProgramsButtonText}>Programs</Text>
         </Pressable>
       </View>
+    </SafeAreaView>
+  )
+}
+
+function ProgramListScreen({
+  navigation,
+  flowAppState,
+  setFlowAppState,
+}: {
+  navigation: any
+  flowAppState: FlowAppState
+  setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
+}) {
+  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId)
+    || flowAppState.centres[0]
+  const programs = flowAppState.programs.filter((program) => centre.categories.includes(program.category))
+  const scheduleCounts = ["10+ schedules", "8+ schedules", "10+ schedules"]
+  const programCards = programs.flatMap((program) => scheduleCounts.map((schedules, index) => ({
+    key: `${program.id}-${index}`,
+    program,
+    schedules,
+  })))
+
+  return (
+    <SafeAreaView style={styles.programListScreen} edges={["top", "bottom"]}>
+      <View style={styles.programListHeader}>
+        <Pressable
+          accessibilityLabel="Back"
+          hitSlop={10}
+          style={styles.programListBackButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Feather name="arrow-left" size={19} color="#777777" />
+        </Pressable>
+        <Text style={styles.programListHeaderTitle}>Program</Text>
+        <View style={styles.programListHeaderSpacer} />
+      </View>
+
+      <ScrollView
+        style={styles.page}
+        contentContainerStyle={styles.programListContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {!programCards.length ? (
+          <Text style={styles.programListEmpty}>No programs are available for this centre yet.</Text>
+        ) : null}
+        {programCards.map(({ key, program, schedules }) => (
+          <Pressable
+            key={key}
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${program.title}`}
+            style={styles.programListCard}
+            onPress={() => {
+              setFlowAppState((prev) => ({ ...prev, selectedProgramId: program.id }))
+              navigation.navigate("ReservationApp")
+            }}
+          >
+            <Image
+              source={{ uri: FIGMA_ASSETS.reservation.program }}
+              style={styles.programListImage}
+              resizeMode="cover"
+            />
+            <View style={styles.programListCardBody}>
+              <View style={styles.programListTitleRow}>
+                <Text style={styles.programListTitle} numberOfLines={1}>{program.title}</Text>
+                <Text style={styles.programListSchedules}>{schedules}</Text>
+              </View>
+              <Text style={styles.programListMeta}>
+                <Text style={styles.programListPrice}>From ${program.price}</Text> lesson · Age 3–6
+              </Text>
+            </View>
+          </Pressable>
+        ))}
+      </ScrollView>
     </SafeAreaView>
   )
 }
@@ -2685,6 +2759,15 @@ export default function App() {
             <Stack.Screen name="MemberProfileApp" options={{ headerShown: false }}>
               {(props) => <MemberProfileScreen {...props} />}
             </Stack.Screen>
+            <Stack.Screen name="ProgramListApp" options={{ headerShown: false }}>
+              {(props) => (
+                <ProgramListScreen
+                  {...props}
+                  flowAppState={flowAppState}
+                  setFlowAppState={setFlowAppState}
+                />
+              )}
+            </Stack.Screen>
             <Stack.Screen name="ReservationApp" options={{ title: "Reservation" }}>
               {(props) => <ReservationAppScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
@@ -3338,6 +3421,44 @@ const styles = StyleSheet.create({
   centreDetailMemberImage: { width: "100%", height: 138, borderRadius: 8, backgroundColor: "#E5E7EB" },
   centreDetailMemberName: { fontSize: 14, fontWeight: "600", color: "#222222" },
   centreDetailMemberRole: { fontSize: 12, color: "#6B6B6B" },
+  programListScreen: { flex: 1, backgroundColor: "#FFFFFF" },
+  programListHeader: {
+    height: 64,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  programListBackButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F1F2F2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  programListHeaderTitle: { fontSize: 17, fontWeight: "600", color: "#222222" },
+  programListHeaderSpacer: { width: 40, height: 40 },
+  programListContent: { width: "100%", maxWidth: 520, alignSelf: "center", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 34, gap: 20 },
+  programListCard: {
+    width: "100%",
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.11,
+    shadowOffset: { width: 0, height: 5 },
+    shadowRadius: 11,
+    elevation: 4,
+  },
+  programListImage: { width: "100%", height: 190, backgroundColor: "#E5E7EB" },
+  programListCardBody: { paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
+  programListTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  programListTitle: { flex: 1, fontSize: 16, fontWeight: "700", color: "#222222" },
+  programListSchedules: { fontSize: 14, color: "#343434", textDecorationLine: "underline" },
+  programListMeta: { fontSize: 14, color: "#6B6B6B" },
+  programListPrice: { fontWeight: "700", color: "#222222" },
+  programListEmpty: { paddingVertical: 40, textAlign: "center", fontSize: 14, lineHeight: 20, color: "#6B6B6B" },
   reviewScreen: { flex: 1, backgroundColor: "#FFFFFF" },
   reviewHeader: {
     height: 64,
