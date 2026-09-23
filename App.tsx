@@ -26,7 +26,6 @@ import {
   TextInput,
   View,
 } from "react-native"
-import { useHeaderHeight } from "@react-navigation/elements"
 import {
   FIGMA_FLOW_BY_GROUP,
   FIGMA_FLOW_GROUP_LABELS,
@@ -84,6 +83,12 @@ type RootStackParamList = {
   ReservationConfirmedApp: { schedule: ClassScheduleOption; total: number }
   SelectChildApp: undefined
   PromoteCodeApp: undefined
+  PersonalSettingApp: undefined
+  ChangePasswordApp: undefined
+  ChildProfileApp: undefined
+  ChildDetailsApp: { childId: string }
+  AddChildProfileApp: undefined
+  FavouriteApp: undefined
   LearningRecordsApp: undefined
   CompanionApp: undefined
   InboxApp: undefined
@@ -336,7 +341,7 @@ function HomeScreen({
       <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
         <View style={styles.topHeaderRow}>
           <View style={styles.profileHeader}>
-            <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.profileAvatarSmall} />
+            <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.profileAvatarSmall} />
             <View>
               <Text style={styles.helloText}>{t.hello("Emily")}</Text>
             </View>
@@ -1615,42 +1620,602 @@ function ProfileScreen({
   onSignOut: () => Promise<void>
   flowAppState: FlowAppState
 }) {
+  const profileName = "Emily Chan"
+
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
-      <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
-        <Text style={styles.pageTitle}>Profile</Text>
-        <View style={styles.card}>
-          <View style={styles.profileHeader}>
-            <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.profileAvatar} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{session.user.name}</Text>
-              <Text style={styles.cardMeta}>{session.user.email}</Text>
+    <SafeAreaView style={styles.profileScreen} edges={["top"]}>
+      <ScrollView style={styles.page} contentContainerStyle={styles.profileContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.profileTitleRow}>
+          <Text style={styles.profilePageTitle}>Profile</Text>
+          <View style={styles.profileTitleActions}>
+            <Pressable accessibilityLabel="Notifications" style={styles.profileRoundAction} onPress={() => navigation.navigate("NotificationApp")}>
+              <Feather name="bell" size={17} color="#8A8A8A" />
+            </Pressable>
+            <Pressable accessibilityLabel="Inbox" style={styles.profileRoundAction} onPress={() => navigation.navigate("InboxApp")}>
+              <Feather name="message-square" size={17} color="#8A8A8A" />
+            </Pressable>
+          </View>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open personal setting"
+          style={styles.profileSummaryCard}
+          onPress={() => navigation.navigate("PersonalSettingApp")}
+        >
+          <View style={styles.profileIdentity}>
+            <View>
+              <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.profileMainAvatar} resizeMode="cover" />
+              <View style={styles.profileAvatarEdit}>
+                <Feather name="user" size={13} color="#FFFFFF" />
+              </View>
+            </View>
+            <Text style={styles.profileMainName}>{profileName}</Text>
+            <Text style={styles.profileLocation}>Hong Kong</Text>
+          </View>
+          <View style={styles.profileStats}>
+            <View style={styles.profileStat}>
+              <Text style={styles.profileStatValue}>2</Text>
+              <Text style={styles.profileStatLabel}>Children</Text>
+            </View>
+            <View style={styles.profileStatDivider} />
+            <View style={styles.profileStat}>
+              <Text style={styles.profileStatValue}>{Math.max(38, flowAppState.bookings.length)}</Text>
+              <Text style={styles.profileStatLabel}>Bookings</Text>
+            </View>
+            <View style={styles.profileStatDivider} />
+            <View style={styles.profileStat}>
+              <Text style={styles.profileStatValue}>3</Text>
+              <Text style={styles.profileStatLabel}>Years on ClassZ</Text>
             </View>
           </View>
-          <Text style={styles.cardMeta}>Role: {session.user.role}</Text>
-        </View>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Current child</Text>
-          <Text style={styles.cardMeta}>{flowAppState.students.find((s) => s.id === flowAppState.selectedStudentId)?.name || "N/A"}</Text>
-          <Text style={styles.cardMeta}>Bookings: {flowAppState.bookings.length}</Text>
-        </View>
-        <View style={styles.card}>
-          <Pressable style={styles.settingRow}>
-            <Text style={styles.settingLabel}>Language</Text>
-            <Feather name="chevron-right" size={16} color="#9CA3AF" />
-          </Pressable>
-          <Pressable style={styles.settingRow}>
-            <Text style={styles.settingLabel}>Notifications</Text>
-            <Feather name="chevron-right" size={16} color="#9CA3AF" />
-          </Pressable>
-        </View>
-        <Pressable style={styles.secondaryButton} onPress={() => navigation.navigate("InboxApp")}>
-          <Text style={styles.secondaryButtonText}>Open Inbox</Text>
         </Pressable>
-        <Pressable style={styles.secondaryButton} onPress={onSignOut}>
-          <Text style={styles.secondaryButtonText}>Sign out</Text>
+
+        <View style={styles.profileFeatureRow}>
+          <Pressable style={styles.profileFeatureCard} onPress={() => navigation.navigate("ChildProfileApp")}>
+            <View style={styles.profileFeatureIcon}>
+              <MaterialCommunityIcons name="notebook-edit-outline" size={56} color="#6475E9" />
+            </View>
+            <Text style={styles.profileFeatureTitle}>Child profile</Text>
+          </Pressable>
+          <Pressable style={styles.profileFeatureCard} onPress={() => navigation.navigate("FavouriteApp")}>
+            <View style={styles.profileFeatureIcon}>
+              <MaterialCommunityIcons name="heart" size={62} color="#F24FA0" />
+            </View>
+            <Text style={styles.profileFeatureTitle}>Favourite</Text>
+          </Pressable>
+        </View>
+
+        <Text style={styles.profileSettingsTitle}>Advance Settings</Text>
+        <View style={styles.profileSettingsList}>
+          <Pressable style={styles.profileSettingRow}>
+            <View style={styles.profileSettingLabelRow}>
+              <Feather name="globe" size={17} color="#666666" />
+              <Text style={styles.profileSettingLabel}>Language</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#777777" />
+          </Pressable>
+          <Pressable style={styles.profileSettingRow} onPress={() => navigation.navigate("ChangePasswordApp")}>
+            <View style={styles.profileSettingLabelRow}>
+              <Feather name="lock" size={17} color="#666666" />
+              <Text style={styles.profileSettingLabel}>Change password</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#777777" />
+          </Pressable>
+          <Pressable style={styles.profileSettingRow}>
+            <View style={styles.profileSettingLabelRow}>
+              <Feather name="file-text" size={17} color="#666666" />
+              <Text style={styles.profileSettingLabel}>Terms &amp; Conditions</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#777777" />
+          </Pressable>
+          <Pressable style={styles.profileSettingRow}>
+            <View style={styles.profileSettingLabelRow}>
+              <Feather name="help-circle" size={17} color="#666666" />
+              <Text style={styles.profileSettingLabel}>Help centre</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#777777" />
+          </Pressable>
+        </View>
+
+        <Pressable accessibilityRole="button" style={styles.profileDeleteButton}>
+          <Text style={styles.profileDeleteText}>Delete account</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" style={styles.profileLogoutButton} onPress={onSignOut}>
+          <Text style={styles.profileLogoutText}>Log Out</Text>
         </Pressable>
       </ScrollView>
+    </SafeAreaView>
+  )
+}
+
+function ProfileFlowHeader({ navigation, title }: { navigation: any; title: string }) {
+  return (
+    <View style={styles.profileFlowHeader}>
+      <Pressable accessibilityLabel="Back" hitSlop={10} style={styles.programListBackButton} onPress={() => navigation.goBack()}>
+        <Feather name="arrow-left" size={19} color="#777777" />
+      </Pressable>
+      <Text style={styles.profileFlowHeaderTitle}>{title}</Text>
+      <View style={styles.programListHeaderSpacer} />
+    </View>
+  )
+}
+
+function PersonalSettingScreen({ navigation, session }: { navigation: any; session: Session }) {
+  const [fullName, setFullName] = useState("Emily Chan")
+  const [email, setEmail] = useState(session.user.email)
+  const [phone, setPhone] = useState("8888 8888")
+
+  return (
+    <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
+      <ProfileFlowHeader navigation={navigation} title="Personal Setting" />
+      <KeyboardAvoidingView style={styles.flex1} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView
+          style={styles.page}
+          contentContainerStyle={styles.personalSettingContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.personalAvatarWrap}>
+            <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.personalAvatar} resizeMode="cover" />
+            <View style={styles.profileAvatarEdit}>
+              <Feather name="user" size={13} color="#FFFFFF" />
+            </View>
+          </View>
+
+          <View style={styles.personalField}>
+            <Text style={styles.personalFieldLabel}>Full name</Text>
+            <TextInput
+              style={styles.personalFieldInput}
+              value={fullName}
+              onChangeText={setFullName}
+              autoCapitalize="words"
+            />
+          </View>
+          <View style={styles.personalField}>
+            <Text style={styles.personalFieldLabel}>Email address</Text>
+            <View style={styles.personalVerifiedRow}>
+              <TextInput
+                style={styles.personalVerifiedInput}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+              <Text style={styles.personalVerifyLink}>Verified</Text>
+            </View>
+          </View>
+          <View style={styles.personalPhoneField}>
+            <Pressable style={styles.personalCountryField}>
+              <Text style={styles.personalFieldLabel}>Country</Text>
+              <View style={styles.personalCountryValueRow}>
+                <Text style={styles.personalFieldValue}>+852</Text>
+                <Feather name="chevron-down" size={18} color="#222222" />
+              </View>
+            </Pressable>
+            <View style={styles.personalPhoneDivider} />
+            <View style={styles.personalPhoneInputWrap}>
+              <Text style={styles.personalFieldLabel}>Phone</Text>
+              <TextInput style={styles.personalPhoneInput} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+            </View>
+            <Text style={styles.personalVerifyLink}>Verify</Text>
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            style={styles.profileFlowPrimaryButton}
+            onPress={() => {
+              Alert.alert("Saved", "Your personal settings have been updated.")
+              navigation.goBack()
+            }}
+          >
+            <Text style={styles.profileFlowPrimaryText}>Save</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  )
+}
+
+function ChangePasswordScreen({ navigation }: { navigation: any }) {
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const canSubmit = Boolean(currentPassword && newPassword && confirmPassword && newPassword === confirmPassword)
+
+  return (
+    <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
+      <ProfileFlowHeader navigation={navigation} title="Change Password" />
+      <KeyboardAvoidingView style={styles.flex1} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView
+          style={styles.page}
+          contentContainerStyle={styles.changePasswordContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <TextInput
+            style={styles.passwordField}
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
+            placeholder="Current password"
+            placeholderTextColor="#B5B5B5"
+            secureTextEntry
+          />
+          <TextInput
+            style={styles.passwordField}
+            value={newPassword}
+            onChangeText={setNewPassword}
+            placeholder="New password"
+            placeholderTextColor="#B5B5B5"
+            secureTextEntry
+          />
+          <TextInput
+            style={styles.passwordField}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            placeholder="Confirm password"
+            placeholderTextColor="#B5B5B5"
+            secureTextEntry
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !canSubmit }}
+            style={[styles.profileFlowPrimaryButton, !canSubmit ? styles.profileFlowPrimaryButtonDisabled : null]}
+            disabled={!canSubmit}
+            onPress={() => {
+              Alert.alert("Password updated", "Your password has been changed.")
+              navigation.goBack()
+            }}
+          >
+            <Text style={styles.profileFlowPrimaryText}>Update password</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  )
+}
+
+function ChildProfileScreen({
+  navigation,
+  flowAppState,
+  setFlowAppState,
+}: {
+  navigation: any
+  flowAppState: FlowAppState
+  setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
+}) {
+  return (
+    <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
+      <ProfileFlowHeader navigation={navigation} title="Child Profile" />
+      <ScrollView style={styles.page} contentContainerStyle={styles.childProfileContent} showsVerticalScrollIndicator={false}>
+        {BOOKING_CHILDREN.map((child) => {
+          const selected = child.id === flowAppState.selectedStudentId
+          return (
+            <Pressable
+              key={child.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${child.name}'s profile`}
+              accessibilityState={{ selected }}
+              style={styles.childProfileCard}
+              onPress={() => {
+                setFlowAppState((prev) => ({ ...prev, selectedStudentId: child.id }))
+                navigation.navigate("ChildDetailsApp", { childId: child.id })
+              }}
+            >
+              <View style={styles.childProfileIdentity}>
+                <Image source={{ uri: child.image }} style={styles.childProfileAvatar} resizeMode="cover" />
+                <Text style={styles.childProfileName}>{child.name}</Text>
+              </View>
+              <View style={styles.childProfileStats}>
+                <View style={[styles.childLevelBadge, child.level === "Beginner" ? styles.childLevelBeginner : styles.childLevelAchiever]}>
+                  <Text style={[styles.childLevelText, child.level === "Beginner" ? styles.childLevelBeginnerText : styles.childLevelAchieverText]}>
+                    {child.level}
+                  </Text>
+                </View>
+                <Text style={styles.childProfileYearValue}>{child.years}</Text>
+                <Text style={styles.childProfileYearLabel}>Years on ClassZ</Text>
+                <View style={styles.childCardDivider} />
+                <View style={styles.childSchoolRow}>
+                  <Text style={styles.childSchoolName}>
+                    <Text style={styles.childSchoolMark}>z</Text>
+                    school
+                  </Text>
+                  <Text style={[styles.childSchoolStatus, child.connected ? styles.childSchoolConnected : styles.childSchoolMuted]}>
+                    {child.connected ? "connected" : "not connected"}
+                  </Text>
+                </View>
+                <View style={styles.childCardDivider} />
+                <View style={styles.childCardMetaRow}>
+                  <View style={styles.childCardMeta}>
+                    <MaterialCommunityIcons name="gender-male" size={13} color="#0ABAB5" />
+                    <Text style={styles.childProfileMetaText}>Age {child.age}</Text>
+                  </View>
+                  <View style={styles.childCardMeta}>
+                    <MaterialCommunityIcons name="check-circle-outline" size={13} color="#8A8A8A" />
+                    <Text style={styles.childProfileMetaText}>SEN</Text>
+                  </View>
+                </View>
+              </View>
+            </Pressable>
+          )
+        })}
+
+        <Text style={styles.childProfilePrompt}>Got more child’s schedule to handle?</Text>
+        <Pressable
+          accessibilityRole="button"
+          style={styles.profileFlowPrimaryButton}
+          onPress={() => navigation.navigate("AddChildProfileApp")}
+        >
+          <Text style={styles.profileFlowPrimaryText}>Add child profile</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
+  )
+}
+
+function ChildDetailsScreen({
+  navigation,
+  route,
+}: {
+  navigation: any
+  route: { params: { childId: string } }
+}) {
+  const child = BOOKING_CHILDREN.find((item) => item.id === route.params.childId) || BOOKING_CHILDREN[0]
+  const [fullName, setFullName] = useState<string>(child.name)
+  const [senRequired, setSenRequired] = useState(true)
+  const [deleteWarningOpen, setDeleteWarningOpen] = useState(false)
+
+  return (
+    <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
+      <ProfileFlowHeader navigation={navigation} title="Child Details" />
+      <KeyboardAvoidingView style={styles.flex1} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView
+          style={styles.page}
+          contentContainerStyle={styles.childDetailsContent}
+          showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.childDetailsAvatarWrap}>
+            <Image source={{ uri: child.image }} style={styles.childDetailsAvatar} resizeMode="cover" />
+            <View style={styles.profileAvatarEdit}>
+              <Feather name="user-plus" size={13} color="#FFFFFF" />
+            </View>
+          </View>
+
+          <View style={styles.personalField}>
+            <Text style={styles.personalFieldLabel}>Full name</Text>
+            <TextInput style={styles.personalFieldInput} value={fullName} onChangeText={setFullName} autoCapitalize="words" />
+          </View>
+
+          <View style={styles.childDetailsSchoolTitleRow}>
+            <Text style={styles.childDetailsSchoolTitle}>
+              <Text style={styles.childSchoolMark}>z.</Text>
+              school
+            </Text>
+            <Text style={styles.childDetailsConnected}>connected</Text>
+          </View>
+          <View style={styles.childDetailsSchoolRow}>
+            <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.childDetailsSchoolLogo} resizeMode="cover" />
+            <Text style={styles.childDetailsSchoolName}>ClassZ Chan Siu Ming{"\n"}Memorial Primary School</Text>
+            <Pressable accessibilityRole="button" hitSlop={8}>
+              <Text style={styles.childDetailsEdit}>Edit</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.childDetailsDivider} />
+
+          <Text style={styles.childDetailsSectionTitle}>Special Education Need (SEN)</Text>
+          <View style={styles.childDetailsToggleRow}>
+            <Text style={styles.childDetailsToggleLabel}>Required SEN assistance</Text>
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityState={{ checked: senRequired }}
+              style={[styles.childDetailsToggle, senRequired ? styles.childDetailsToggleOn : null]}
+              onPress={() => setSenRequired((value) => !value)}
+            >
+              <View style={[styles.childDetailsToggleThumb, senRequired ? styles.childDetailsToggleThumbOn : null]}>
+                {senRequired ? <Feather name="check" size={12} color="#0ABAB5" /> : null}
+              </View>
+            </Pressable>
+          </View>
+
+          <View style={styles.childDetailsFooter}>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.childDetailsDeleteButton}
+              onPress={() => setDeleteWarningOpen(true)}
+            >
+              <Text style={styles.childDetailsDelete}>Delete profile</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.profileFlowPrimaryButton}
+              onPress={() => {
+                Alert.alert("Saved", `${fullName}'s profile has been updated.`)
+                navigation.goBack()
+              }}
+            >
+              <Text style={styles.profileFlowPrimaryText}>Save</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      <Modal visible={deleteWarningOpen} transparent animationType="fade" onRequestClose={() => setDeleteWarningOpen(false)}>
+        <View style={styles.childWarningRoot}>
+          <Pressable style={styles.childWarningBackdrop} onPress={() => setDeleteWarningOpen(false)} />
+          <View style={styles.childWarningCard}>
+            <Image source={{ uri: child.image }} style={styles.childWarningAvatar} resizeMode="cover" />
+            <Text style={styles.childWarningName}>{child.name}</Text>
+            <Text style={styles.childWarningText}>
+              <Text style={styles.childWarningTextBold}>Warning: </Text>
+              Deleting this profile also deletes all associated feedback records.
+            </Text>
+            <View style={styles.childWarningActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setDeleteWarningOpen(false)
+                  navigation.goBack()
+                }}
+              >
+                <Text style={styles.childWarningDelete}>Delete</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" style={styles.childWarningBack} onPress={() => setDeleteWarningOpen(false)}>
+                <Text style={styles.childWarningBackText}>Go Back</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  )
+}
+
+function AddChildProfileScreen({ navigation }: { navigation: any }) {
+  const [fullName, setFullName] = useState("")
+  const [idCard, setIdCard] = useState("")
+  const [birthday, setBirthday] = useState("")
+  const [phone, setPhone] = useState("")
+  const [senRequired, setSenRequired] = useState(false)
+
+  return (
+    <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
+      <ProfileFlowHeader navigation={navigation} title="Add Child" />
+      <KeyboardAvoidingView style={styles.flex1} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView
+          style={styles.page}
+          contentContainerStyle={styles.addChildContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.addChildAvatar}>
+            <Feather name="user" size={34} color="#B5B5B5" />
+          </View>
+          <TextInput style={styles.addChildField} value={fullName} onChangeText={setFullName} placeholder="Full name" placeholderTextColor="#B5B5B5" />
+          <TextInput style={styles.addChildField} value={idCard} onChangeText={setIdCard} placeholder="ID card number" placeholderTextColor="#B5B5B5" autoCapitalize="characters" />
+          <TextInput style={styles.addChildField} value={birthday} onChangeText={setBirthday} placeholder={"Birthday\n(dd/mm/yyyy)"} placeholderTextColor="#B5B5B5" />
+          <View style={styles.personalPhoneField}>
+            <Pressable style={styles.personalCountryField}>
+              <Text style={styles.personalFieldLabel}>Country</Text>
+              <View style={styles.personalCountryValueRow}>
+                <Text style={styles.personalFieldValue}>+852</Text>
+                <Feather name="chevron-down" size={18} color="#222222" />
+              </View>
+            </Pressable>
+            <View style={styles.personalPhoneDivider} />
+            <TextInput style={styles.addChildPhoneInput} value={phone} onChangeText={setPhone} placeholder="Phone" placeholderTextColor="#B5B5B5" keyboardType="phone-pad" />
+          </View>
+
+          <Text style={styles.childDetailsSchoolTitle}>
+            <Text style={styles.childSchoolMark}>z</Text>
+            school
+          </Text>
+          <View style={styles.addChildSchoolRow}>
+            <View style={styles.addChildSchoolLogo} />
+            <Text style={styles.addChildSchoolText}>Connect a school</Text>
+            <Feather name="chevron-right" size={19} color="#777777" />
+          </View>
+
+          <Text style={styles.childDetailsSectionTitle}>Special Education Need (SEN)</Text>
+          <View style={styles.childDetailsToggleRow}>
+            <Text style={styles.childDetailsToggleLabel}>Required SEN assistance</Text>
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityState={{ checked: senRequired }}
+              style={[styles.childDetailsToggle, senRequired ? styles.childDetailsToggleOn : null]}
+              onPress={() => setSenRequired((value) => !value)}
+            >
+              <View style={[styles.childDetailsToggleThumb, senRequired ? styles.childDetailsToggleThumbOn : null]}>
+                {senRequired ? <Feather name="check" size={12} color="#0ABAB5" /> : null}
+              </View>
+            </Pressable>
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !fullName.trim() }}
+            style={[styles.profileFlowPrimaryButton, !fullName.trim() ? styles.profileFlowPrimaryButtonDisabled : null]}
+            disabled={!fullName.trim()}
+            onPress={() => {
+              Alert.alert("Child added", `${fullName.trim()}'s profile has been created.`)
+              navigation.goBack()
+            }}
+          >
+            <Text style={styles.profileFlowPrimaryText}>Save</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  )
+}
+
+function FavouriteScreen({ navigation }: { navigation: any }) {
+  const [favourites, setFavourites] = useState(["favourite-1", "favourite-2"])
+
+  return (
+    <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
+      <ProfileFlowHeader navigation={navigation} title="Favourite" />
+      <ScrollView style={styles.page} contentContainerStyle={styles.favouriteContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.favouriteFilter}>Filter</Text>
+        {["favourite-1", "favourite-2"].map((id) => {
+          const liked = favourites.includes(id)
+          return (
+            <Pressable key={id} style={styles.favouriteCard} onPress={() => navigation.navigate("CentreDetailApp")}>
+              <View style={styles.favouriteImageWrap}>
+                <Image source={{ uri: FIGMA_ASSETS.main.recommend2 }} style={styles.favouriteImage} resizeMode="cover" />
+                <View style={styles.favouriteSenBadge}>
+                  <Feather name="check-circle" size={12} color="#222222" />
+                  <Text style={styles.favouriteSenText}>SEN</Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={liked ? "Remove favourite" : "Add favourite"}
+                  hitSlop={8}
+                  style={styles.favouriteHeart}
+                  onPress={(event) => {
+                    event.stopPropagation()
+                    setFavourites((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
+                  }}
+                >
+                  <MaterialCommunityIcons name={liked ? "heart" : "heart-outline"} size={24} color="#FFFFFF" />
+                </Pressable>
+              </View>
+              <View style={styles.favouriteCardBody}>
+                <View style={styles.favouriteCardTitleRow}>
+                  <Text style={styles.favouriteCardTitle}>ClassZ Playgroup Centre</Text>
+                  <View style={styles.favouriteRating}>
+                    <MaterialCommunityIcons name="star" size={15} color="#222222" />
+                    <Text style={styles.favouriteRatingText}>4.91</Text>
+                  </View>
+                </View>
+                <Text style={styles.favouriteMeta}>
+                  <Text style={styles.favouritePrice}>$299</Text> lesson · Causeway Bay
+                </Text>
+              </View>
+            </Pressable>
+          )
+        })}
+      </ScrollView>
+      <View style={styles.favouriteBottomNav}>
+        {([
+          ["Home", "home"],
+          ["Search", "search"],
+          ["Calendar", "calendar"],
+          ["Analytics", "analytics"],
+        ] as const).map(([screen, key]) => (
+          <Pressable key={screen} style={styles.favouriteBottomNavItem} onPress={() => navigation.navigate("AppTabs", { screen })}>
+            <Image
+              source={NAV_ICONS[screen]}
+              style={[styles.realTabIcon, { tintColor: key === "search" ? "#0ABAB5" : "#8A8A8A" }]}
+            />
+          </Pressable>
+        ))}
+        <Pressable style={styles.favouriteBottomNavItem} onPress={() => navigation.navigate("AppTabs", { screen: "Profile" })}>
+          <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.profileTabAvatar} resizeMode="cover" />
+        </Pressable>
+      </View>
     </SafeAreaView>
   )
 }
@@ -2615,9 +3180,11 @@ function InboxAppScreen({
 }
 
 function InboxMessageAppScreen({
+  navigation,
   route,
   locale,
 }: {
+  navigation: any
   route: { params: { threadId: string } }
   locale: AppLocale
 }) {
@@ -2626,7 +3193,6 @@ function InboxMessageAppScreen({
   const [draft, setDraft] = useState("")
   const [messages, setMessages] = useState<InboxChatMessage[]>(() => getInboxMessages(route.params.threadId))
   const chatListRef = useRef<ScrollView>(null)
-  const headerHeight = useHeaderHeight()
 
   function sendMessage() {
     const text = draft.trim()
@@ -2653,15 +3219,29 @@ function InboxMessageAppScreen({
   }
 
   return (
-    <SafeAreaView style={styles.screen} edges={["bottom"]}>
+    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
+      <View style={styles.inboxMessageHeader}>
+        <Pressable
+          accessibilityLabel="Back"
+          hitSlop={10}
+          style={styles.programListBackButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Feather name="arrow-left" size={19} color="#777777" />
+        </Pressable>
+        <View style={styles.inboxMessageHeaderCopy}>
+          <Text style={styles.inboxMessageHeaderTitle} numberOfLines={2}>
+            {thread.centre}
+          </Text>
+          <Text style={styles.inboxResponseTime}>{t.responseTime(thread.responseTime)}</Text>
+        </View>
+        <View style={styles.inboxMessageHeaderSpacer} />
+      </View>
       <KeyboardAvoidingView
         style={styles.flex1}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={headerHeight}
+        keyboardVerticalOffset={0}
       >
-        <View style={styles.inboxChatHeaderMeta}>
-          <Text style={styles.inboxResponseTime}>{t.responseTime(thread.responseTime)}</Text>
-        </View>
         <ScrollView
           ref={chatListRef}
           style={styles.page}
@@ -2678,9 +3258,7 @@ function InboxMessageAppScreen({
             return (
               <View key={msg.id} style={[styles.inboxBubbleRow, mine ? styles.inboxBubbleRowMine : null]}>
                 {!mine ? (
-                  <View style={styles.inboxChatAvatar}>
-                    <Text style={styles.inboxThreadAvatarText}>Z</Text>
-                  </View>
+                  <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.inboxChatAvatarImage} resizeMode="cover" />
                 ) : null}
                 <View style={[styles.inboxBubbleCol, mine ? styles.inboxBubbleColMine : null]}>
                   <View style={[styles.inboxBubble, mine ? styles.inboxBubbleMine : styles.inboxBubbleCentre]}>
@@ -2689,7 +3267,7 @@ function InboxMessageAppScreen({
                   <Text style={[styles.inboxBubbleTime, mine ? styles.inboxBubbleTimeMine : null]}>{msg.time}</Text>
                 </View>
                 {mine ? (
-                  <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.inboxChatAvatarImage} />
+                  <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.inboxChatAvatarImage} resizeMode="cover" />
                 ) : null}
               </View>
             )
@@ -3358,8 +3936,19 @@ function AppTabs({
           marginTop: 0,
           marginBottom: 0,
         },
-        tabBarIcon: ({ color }) => {
+        tabBarIcon: ({ color, focused }) => {
           const routeName = route.name as keyof TabsParamList
+          if (routeName === "Profile") {
+            return (
+              <View style={styles.realTabIconWrap}>
+                <Image
+                  source={{ uri: FIGMA_ASSETS.reservation.coach }}
+                  style={[styles.profileTabAvatar, focused ? styles.profileTabAvatarActive : null]}
+                  resizeMode="cover"
+                />
+              </View>
+            )
+          }
           return (
             <View style={styles.realTabIconWrap}>
               <Image
@@ -3556,6 +4145,24 @@ export default function App() {
             <Stack.Screen name="PromoteCodeApp" options={{ headerShown: false }}>
               {(props) => <PromoteCodeScreen {...props} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
+            <Stack.Screen name="PersonalSettingApp" options={{ headerShown: false }}>
+              {(props) => <PersonalSettingScreen {...props} session={session} />}
+            </Stack.Screen>
+            <Stack.Screen name="ChangePasswordApp" options={{ headerShown: false }}>
+              {(props) => <ChangePasswordScreen {...props} />}
+            </Stack.Screen>
+            <Stack.Screen name="ChildProfileApp" options={{ headerShown: false }}>
+              {(props) => <ChildProfileScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
+            </Stack.Screen>
+            <Stack.Screen name="ChildDetailsApp" options={{ headerShown: false }}>
+              {(props) => <ChildDetailsScreen {...props} />}
+            </Stack.Screen>
+            <Stack.Screen name="AddChildProfileApp" options={{ headerShown: false }}>
+              {(props) => <AddChildProfileScreen {...props} />}
+            </Stack.Screen>
+            <Stack.Screen name="FavouriteApp" options={{ headerShown: false }}>
+              {(props) => <FavouriteScreen {...props} />}
+            </Stack.Screen>
             <Stack.Screen name="LearningRecordsApp" options={{ title: "Learning Records" }}>
               {(props) => <LearningRecordsAppScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
@@ -3567,9 +4174,7 @@ export default function App() {
             </Stack.Screen>
             <Stack.Screen
               name="InboxMessageApp"
-              options={({ route }) => ({
-                title: findInboxThread(route.params.threadId)?.centre || tInbox(locale).title,
-              })}
+              options={{ headerShown: false }}
             >
               {(props) => <InboxMessageAppScreen {...props} locale={locale} />}
             </Stack.Screen>
@@ -3724,15 +4329,33 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
   },
-  inboxChatHeaderMeta: {
-    paddingHorizontal: 24,
-    paddingBottom: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#E5E7EB",
-    backgroundColor: "#fff",
+  inboxMessageHeader: {
+    minHeight: 76,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 5 },
+    shadowRadius: 10,
+    elevation: 7,
+    zIndex: 2,
   },
-  inboxResponseTime: { fontSize: FONT.caption, color: "#7A7A7A", textAlign: "center" },
-  inboxChatContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24, gap: 14 },
+  inboxMessageHeaderCopy: { flex: 1, alignItems: "flex-start", justifyContent: "center" },
+  inboxMessageHeaderTitle: { fontSize: FONT.body, lineHeight: 17, fontWeight: "500", color: "#222222" },
+  inboxMessageHeaderSpacer: { width: 40, height: 40 },
+  inboxResponseTime: { marginTop: 4, fontSize: FONT.micro, color: "#8A8A8A" },
+  inboxChatContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 16,
+    paddingTop: 22,
+    paddingBottom: 24,
+    gap: 14,
+  },
   inboxTodayBadge: {
     alignSelf: "center",
     backgroundColor: "#D7F4F3",
@@ -3740,19 +4363,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  inboxTodayBadgeText: { fontSize: FONT.caption, fontWeight: "700", color: "#222222" },
+  inboxTodayBadgeText: { fontSize: FONT.micro, fontWeight: "600", color: "#555555" },
   inboxBubbleRow: { flexDirection: "row", alignItems: "flex-end", gap: 4 },
   inboxBubbleRowMine: { justifyContent: "flex-end" },
-  inboxChatAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F4AE00",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  inboxChatAvatarImage: { width: 40, height: 40, borderRadius: 20 },
-  inboxBubbleCol: { maxWidth: "72%", gap: 4 },
+  inboxChatAvatarImage: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#E5E7EB" },
+  inboxBubbleCol: { maxWidth: "74%", gap: 4 },
   inboxBubbleColMine: { alignItems: "flex-end" },
   inboxBubble: {
     borderRadius: 12,
@@ -3778,6 +4393,9 @@ const styles = StyleSheet.create({
   inboxBubbleTime: { fontSize: FONT.caption, color: "#7A7A7A" },
   inboxBubbleTimeMine: { textAlign: "right" },
   inboxComposerWrap: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
@@ -4385,6 +5003,357 @@ const styles = StyleSheet.create({
   reservationFineBrand: { fontSize: FONT.bodyLg, fontWeight: "700", color: "#0ABAB5" },
   reservationLearnMore: { fontSize: FONT.secondary, color: "#222222", textDecorationLine: "underline" },
   reservationLink: { color: "#2F6BFF", textDecorationLine: "underline" },
+  profileScreen: { flex: 1, backgroundColor: "#FFFFFF" },
+  profileContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 30,
+    gap: 20,
+  },
+  profileTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  profilePageTitle: { fontSize: FONT.title, fontWeight: "700", color: "#111111" },
+  profileTitleActions: { flexDirection: "row", alignItems: "center", gap: 10 },
+  profileRoundAction: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#F1F2F2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileSummaryCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 18,
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  profileIdentity: { width: 126, alignItems: "center" },
+  profileMainAvatar: { width: 86, height: 86, borderRadius: 43, backgroundColor: "#E5E7EB" },
+  profileAvatarEdit: {
+    position: "absolute",
+    right: -2,
+    bottom: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#0ABAB5",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileMainName: { marginTop: 8, fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
+  profileLocation: { marginTop: 3, fontSize: FONT.caption, color: "#8A8A8A" },
+  profileStats: { flex: 1 },
+  profileStat: { paddingVertical: 4, gap: 1 },
+  profileStatValue: { fontSize: FONT.heading, fontWeight: "700", color: "#222222" },
+  profileStatLabel: { fontSize: FONT.caption, fontWeight: "600", color: "#555555" },
+  profileStatDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "#E4E4E4" },
+  profileFeatureRow: { flexDirection: "row", gap: 16 },
+  profileFeatureCard: {
+    flex: 1,
+    minHeight: 168,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  profileFeatureIcon: { flex: 1, alignItems: "center", justifyContent: "center" },
+  profileFeatureTitle: { fontSize: FONT.headline, fontWeight: "600", color: "#333333" },
+  profileSettingsTitle: { marginTop: 4, fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
+  profileSettingsList: { marginTop: -6 },
+  profileSettingRow: {
+    minHeight: 54,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E4E4E4",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  profileSettingLabelRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  profileSettingLabel: { fontSize: FONT.bodyLg, color: "#555555" },
+  profileDeleteButton: { alignSelf: "center", marginTop: -4 },
+  profileDeleteText: { fontSize: FONT.caption, color: "#8A8A8A", textDecorationLine: "underline" },
+  profileLogoutButton: {
+    width: "58%",
+    minHeight: 46,
+    borderRadius: 10,
+    backgroundColor: "#2A2A2A",
+    alignSelf: "center",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileLogoutText: { fontSize: FONT.body, fontWeight: "600", color: "#FFFFFF" },
+  profileFlowHeader: {
+    height: 66,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  profileFlowHeaderTitle: { fontSize: FONT.headerTitle, fontWeight: "500", color: "#111111" },
+  personalSettingContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    gap: 18,
+  },
+  personalAvatarWrap: { alignSelf: "center", marginTop: 4, marginBottom: 16 },
+  personalAvatar: { width: 100, height: 100, borderRadius: 50, backgroundColor: "#E5E7EB" },
+  personalField: {
+    minHeight: 70,
+    borderWidth: 1,
+    borderColor: "#BEBEBE",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  personalFieldLabel: { fontSize: FONT.caption, color: "#8A8A8A" },
+  personalFieldInput: { flex: 1, paddingVertical: 4, fontSize: FONT.headline, color: "#333333" },
+  personalVerifiedRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
+  personalVerifiedInput: { flex: 1, paddingVertical: 4, fontSize: FONT.headline, color: "#333333" },
+  personalVerifyLink: { fontSize: FONT.body, color: "#222222", textDecorationLine: "underline" },
+  personalPhoneField: {
+    minHeight: 70,
+    borderWidth: 1,
+    borderColor: "#BEBEBE",
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "stretch",
+    paddingRight: 14,
+  },
+  personalCountryField: { width: 106, paddingHorizontal: 14, paddingVertical: 10, justifyContent: "center", gap: 5 },
+  personalCountryValueRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  personalFieldValue: { fontSize: FONT.headline, color: "#333333" },
+  personalPhoneDivider: { width: StyleSheet.hairlineWidth, backgroundColor: "#BEBEBE" },
+  personalPhoneInputWrap: { flex: 1, paddingHorizontal: 14, paddingVertical: 10, justifyContent: "center" },
+  personalPhoneInput: { paddingVertical: 3, fontSize: FONT.headline, color: "#333333" },
+  profileFlowPrimaryButton: {
+    minHeight: 48,
+    borderRadius: 10,
+    backgroundColor: "#2A2A2A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileFlowPrimaryButtonDisabled: { opacity: 0.72 },
+  profileFlowPrimaryText: { fontSize: FONT.body, fontWeight: "600", color: "#FFFFFF" },
+  changePasswordContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    paddingBottom: 40,
+    gap: 18,
+  },
+  passwordField: {
+    minHeight: 58,
+    borderWidth: 1,
+    borderColor: "#BEBEBE",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    fontSize: FONT.headline,
+    color: "#222222",
+    backgroundColor: "#FFFFFF",
+  },
+  childProfileContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    gap: 18,
+  },
+  childProfileCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 18,
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  childProfileIdentity: { width: 124, alignItems: "center" },
+  childProfileAvatar: { width: 94, height: 94, borderRadius: 47, backgroundColor: "#E5E7EB" },
+  childProfileName: { marginTop: 10, fontSize: FONT.headline, fontWeight: "700", color: "#111111", textAlign: "center" },
+  childProfileStats: { flex: 1, gap: 5 },
+  childProfileYearValue: { fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
+  childProfileYearLabel: { fontSize: FONT.caption, fontWeight: "500", color: "#333333" },
+  childProfileMetaText: { fontSize: FONT.caption, color: "#777777" },
+  childProfilePrompt: { marginTop: 18, fontSize: FONT.body, color: "#777777", textAlign: "center" },
+  childDetailsContent: {
+    width: "100%",
+    maxWidth: 520,
+    flexGrow: 1,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingTop: 34,
+    paddingBottom: 24,
+    gap: 18,
+  },
+  childDetailsAvatarWrap: { alignSelf: "center", marginBottom: 22 },
+  childDetailsAvatar: { width: 100, height: 100, borderRadius: 50, backgroundColor: "#E5E7EB" },
+  childDetailsSchoolTitleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  childDetailsSchoolTitle: { fontSize: FONT.heading, fontWeight: "700", color: "#222222" },
+  childDetailsConnected: { fontSize: FONT.body, fontWeight: "600", color: "#0ABAB5" },
+  childDetailsSchoolRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14 },
+  childDetailsSchoolLogo: { width: 46, height: 46, borderRadius: 23, backgroundColor: "#E5E7EB" },
+  childDetailsSchoolName: { flex: 1, fontSize: FONT.body, lineHeight: 18, fontWeight: "600", color: "#333333" },
+  childDetailsEdit: { fontSize: FONT.body, color: "#222222", textDecorationLine: "underline" },
+  childDetailsDivider: { height: StyleSheet.hairlineWidth, marginHorizontal: 10, backgroundColor: "#E4E4E4" },
+  childDetailsSectionTitle: { fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
+  childDetailsToggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14 },
+  childDetailsToggleLabel: { fontSize: FONT.body, color: "#333333" },
+  childDetailsToggle: {
+    width: 42,
+    height: 26,
+    borderRadius: 13,
+    paddingHorizontal: 3,
+    justifyContent: "center",
+    backgroundColor: "#D7D7D7",
+  },
+  childDetailsToggleOn: { backgroundColor: "#0ABAB5" },
+  childDetailsToggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: "#FFFFFF" },
+  childDetailsToggleThumbOn: { alignSelf: "flex-end", alignItems: "center", justifyContent: "center" },
+  childDetailsFooter: { marginTop: "auto", paddingTop: 44, gap: 8 },
+  childDetailsDeleteButton: { minHeight: 44, alignItems: "center", justifyContent: "center" },
+  childDetailsDelete: { fontSize: FONT.caption, color: "#777777", textAlign: "center", textDecorationLine: "underline" },
+  childWarningRoot: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
+  childWarningBackdrop: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "rgba(0,0,0,0.43)" },
+  childWarningCard: {
+    width: "100%",
+    maxWidth: 420,
+    borderRadius: 14,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 18,
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#FFFFFF",
+  },
+  childWarningAvatar: { width: 84, height: 84, borderRadius: 42, backgroundColor: "#E5E7EB" },
+  childWarningName: { fontSize: FONT.headline, fontWeight: "600", color: "#222222" },
+  childWarningText: { fontSize: FONT.caption, lineHeight: 17, color: "#333333", textAlign: "center" },
+  childWarningTextBold: { fontWeight: "700" },
+  childWarningActions: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
+  childWarningDelete: { fontSize: FONT.caption, color: "#777777", textDecorationLine: "underline" },
+  childWarningBack: {
+    width: "70%",
+    minHeight: 38,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#2A2A2A",
+  },
+  childWarningBackText: { fontSize: FONT.body, fontWeight: "600", color: "#FFFFFF" },
+  addChildContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 36,
+    gap: 16,
+  },
+  addChildAvatar: {
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    alignSelf: "center",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E5E5E5",
+    marginBottom: 8,
+  },
+  addChildField: {
+    minHeight: 58,
+    borderWidth: 1,
+    borderColor: "#BEBEBE",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    fontSize: FONT.bodyLg,
+    color: "#222222",
+    backgroundColor: "#FFFFFF",
+  },
+  addChildPhoneInput: { flex: 1, paddingHorizontal: 14, fontSize: FONT.bodyLg, color: "#222222" },
+  addChildSchoolRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  addChildSchoolLogo: { width: 46, height: 46, borderRadius: 23, backgroundColor: "#E5E5E5" },
+  addChildSchoolText: { flex: 1, fontSize: FONT.body, color: "#777777" },
+  favouriteContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+    gap: 16,
+  },
+  favouriteFilter: { fontSize: FONT.body, color: "#222222", textDecorationLine: "underline" },
+  favouriteCard: {
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  favouriteImageWrap: { height: 160, position: "relative" },
+  favouriteImage: { width: "100%", height: "100%", backgroundColor: "#E5E7EB" },
+  favouriteSenBadge: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    borderRadius: 7,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(255,255,255,0.9)",
+  },
+  favouriteSenText: { fontSize: FONT.caption, color: "#222222" },
+  favouriteHeart: { position: "absolute", top: 10, right: 10, padding: 3 },
+  favouriteCardBody: { paddingHorizontal: 14, paddingVertical: 13, gap: 8 },
+  favouriteCardTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  favouriteCardTitle: { flex: 1, fontSize: FONT.body, fontWeight: "600", color: "#222222" },
+  favouriteRating: { flexDirection: "row", alignItems: "center", gap: 4 },
+  favouriteRatingText: { fontSize: FONT.body, color: "#222222" },
+  favouriteMeta: { fontSize: FONT.body, color: "#777777" },
+  favouritePrice: { fontWeight: "700", color: "#222222" },
+  favouriteBottomNav: {
+    height: 64,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#DADADA",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  favouriteBottomNavItem: { flex: 1, height: "100%", alignItems: "center", justifyContent: "center" },
   confirmedScreen: { flex: 1, backgroundColor: "#FFFFFF" },
   confirmedContent: {
     width: "100%",
@@ -4911,5 +5880,7 @@ const styles = StyleSheet.create({
   },
   realTabIconWrapActive: { backgroundColor: "transparent" },
   realTabIcon: { width: 21, height: 21, resizeMode: "contain" },
+  profileTabAvatar: { width: 25, height: 25, borderRadius: 13, borderWidth: 1, borderColor: "#D8D8D8" },
+  profileTabAvatarActive: { borderWidth: 2, borderColor: "#0ABAB5" },
   primaryDisabledMain: { opacity: 0.45 },
 })

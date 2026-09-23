@@ -66,8 +66,8 @@ export const INBOX_MESSAGES: Record<string, InboxChatMessage[]> = {
   t2: [
     { id: "m1", from: "centre", text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.", time: "12:35" },
     { id: "m2", from: "me", text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.", time: "12:40" },
-    { id: "m3", from: "centre", text: "Yes, the following timeslot is available this Saturday.", time: "12:42" },
-    { id: "m4", from: "me", text: "Great, please hold that timeslot for us.", time: "12:45" },
+    { id: "m3", from: "centre", text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.", time: "12:35" },
+    { id: "m4", from: "me", text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.", time: "12:40" },
   ],
   t3: [
     { id: "m1", from: "centre", text: "Your STEM trial class is confirmed.", time: "11:10" },
