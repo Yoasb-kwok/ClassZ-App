@@ -67,6 +67,16 @@ type Session = {
   }
 }
 
+type ScheduleClassDetailRouteParams = {
+  title: string
+  time: string
+  date: string
+  lesson: string
+  image: string
+  color: string
+  child: string
+}
+
 type RootStackParamList = {
   AuthLanding: undefined
   Login: { role: AuthRole }
@@ -89,6 +99,9 @@ type RootStackParamList = {
   ChildDetailsApp: { childId: string }
   AddChildProfileApp: undefined
   FavouriteApp: undefined
+  ScheduleClassDetailApp: ScheduleClassDetailRouteParams
+  VerificationCodeApp: ScheduleClassDetailRouteParams
+  AttendanceConfirmedApp: ScheduleClassDetailRouteParams
   LearningRecordsApp: undefined
   CompanionApp: undefined
   InboxApp: undefined
@@ -1550,7 +1563,7 @@ const SCHEDULE_CALENDAR_DAYS = [
   27, 28, 29, 30, 1, 2, 3,
 ] as const
 
-function CalendarTabScreen({ flowAppState }: { flowAppState: FlowAppState }) {
+function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flowAppState: FlowAppState }) {
   const [view, setView] = useState<ScheduleView>("calendar")
   const [selectedScheduleChildId, setSelectedScheduleChildId] = useState<string | null>(null)
   const [scopeMenuOpen, setScopeMenuOpen] = useState(false)
@@ -1760,7 +1773,19 @@ function CalendarTabScreen({ flowAppState }: { flowAppState: FlowAppState }) {
 
         <View style={styles.scheduleList}>
           {visibleItems.map((item) => (
-            <Pressable key={item.id} style={styles.scheduleCard}>
+            <Pressable
+              key={item.id}
+              style={styles.scheduleCard}
+              onPress={() => navigation.navigate("ScheduleClassDetailApp", {
+                title: item.title,
+                time: item.time,
+                date: item.date,
+                lesson: item.lesson,
+                image: item.image,
+                color: item.color,
+                child: item.child,
+              })}
+            >
               <View style={styles.scheduleCardTimeRow}>
                 <View style={[styles.scheduleCardDot, { backgroundColor: item.color }]} />
                 <Text style={styles.scheduleCardTime}>{item.time} · {item.date}</Text>
@@ -1779,6 +1804,361 @@ function CalendarTabScreen({ flowAppState }: { flowAppState: FlowAppState }) {
               </View>
             </Pressable>
           ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  )
+}
+
+function ScheduleClassDetailScreen({
+  navigation,
+  route,
+  flowAppState,
+}: {
+  navigation: any
+  route: { params: ScheduleClassDetailRouteParams }
+  flowAppState: FlowAppState
+}) {
+  const { title, time, date, lesson, image, color, child } = route.params
+  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || flowAppState.centres[0]
+  const bookingChild = BOOKING_CHILDREN.find((item) => item.name === child) || BOOKING_CHILDREN[0]
+
+  return (
+    <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
+      <ProfileFlowHeader navigation={navigation} title="Class Detail" />
+      <ScrollView style={styles.page} contentContainerStyle={styles.classDetailContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.classDetailProgramCard}>
+          <View style={styles.scheduleCardTimeRow}>
+            <View style={[styles.scheduleCardDot, { backgroundColor: color }]} />
+            <Text style={styles.classDetailTime}>{time} · {date}</Text>
+          </View>
+          <View style={styles.classDetailProgramRow}>
+            <Image source={{ uri: image }} style={styles.classDetailProgramImage} resizeMode="cover" />
+            <View style={styles.classDetailProgramCopy}>
+              <Text style={styles.classDetailProgramTitle}>{title}</Text>
+              <Text style={styles.classDetailLesson}>{lesson}</Text>
+              <View style={styles.confirmedMetaRow}>
+                <Feather name="globe" size={14} color="#777777" />
+                <Text style={styles.confirmedMetaText}>Cantonese</Text>
+              </View>
+              <View style={styles.confirmedMetaRow}>
+                <Feather name="map-pin" size={14} color="#777777" />
+                <Text style={styles.confirmedMetaText}>Shop 1B, Class Mall, Central, Hong Kong</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.classDetailVerification}>
+          <Text style={styles.classDetailVerificationHint}>Share this code or QR with your child to check in</Text>
+          <Pressable
+            accessibilityRole="button"
+            style={styles.classDetailVerificationButton}
+            onPress={() => navigation.navigate("VerificationCodeApp", route.params)}
+          >
+            <Text style={styles.classDetailVerificationText}>Verification code</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.reservationDivider} />
+
+        <View style={styles.classDetailSection}>
+          <Text style={styles.classDetailSectionTitle}>Hosted by</Text>
+          <View style={styles.classDetailPersonRow}>
+            <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.classDetailAvatar} resizeMode="cover" />
+            <Text style={styles.classDetailPersonNameFill}>{centre.detailName || centre.name}</Text>
+            <View style={styles.confirmedRating}>
+              <MaterialCommunityIcons name="star" size={16} color="#222222" />
+              <Text style={styles.confirmedRatingText}>{centre.rating.toFixed(2)}</Text>
+            </View>
+          </View>
+          <View style={styles.classDetailPersonRow}>
+            <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.classDetailAvatar} resizeMode="cover" />
+            <View style={styles.classDetailPersonCopy}>
+              <Text style={styles.classDetailPersonName}>Athena Yeung</Text>
+              <Text style={styles.classDetailPersonRole}>Program Coach</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.reservationDivider} />
+
+        <View style={styles.classDetailSection}>
+          <Text style={styles.classDetailSectionTitle}>Booking for</Text>
+          <View style={styles.classDetailPersonRow}>
+            <Image source={{ uri: bookingChild.image }} style={styles.classDetailAvatar} resizeMode="cover" />
+            <Text style={styles.classDetailPersonNameFill}>{child}</Text>
+          </View>
+        </View>
+
+        <View style={styles.reservationDivider} />
+
+        <Text style={styles.classDetailFinePrint}>
+          <Text style={styles.reservationFineBrand}>zcare</Text>
+          {" "}helps protect your ClassZ booking by supporting class records, photos, coach feedback, and service-related issues under platform policy.{" "}
+          <Text style={styles.reservationLearnMore}>Learn More</Text>
+        </Text>
+
+        <View style={styles.reservationDivider} />
+
+        <Text style={styles.classDetailFinePrint}>
+          You agreed to our <Text style={styles.reservationLink}>Cancellation Policy</Text>,{" "}
+          <Text style={styles.reservationLink}>Refund Policy</Text> and{" "}
+          <Text style={styles.reservationLink}>Terms and Conditions</Text>. Confirmed bookings are non-refundable, including sickness or absence. Direct centre arrangements may not be covered by ZCare or ClassZ Passport.
+        </Text>
+      </ScrollView>
+
+      <View style={styles.classDetailBottomNav}>
+        {([
+          ["Home", "Home"],
+          ["Search", "Search"],
+          ["Calendar", "Calendar"],
+          ["Analytics", "Analytics"],
+        ] as const).map(([screen, key]) => (
+          <Pressable key={screen} style={styles.favouriteBottomNavItem} onPress={() => navigation.navigate("AppTabs", { screen })}>
+            <Image
+              source={NAV_ICONS[key]}
+              style={[styles.realTabIcon, { tintColor: screen === "Analytics" ? "#0ABAB5" : "#8A8A8A" }]}
+            />
+          </Pressable>
+        ))}
+        <Pressable style={styles.favouriteBottomNavItem} onPress={() => navigation.navigate("AppTabs", { screen: "Profile" })}>
+          <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.profileTabAvatar} resizeMode="cover" />
+        </Pressable>
+      </View>
+    </SafeAreaView>
+  )
+}
+
+const QR_GRID_SIZE = 21
+
+function qrCellFilled(row: number, column: number): boolean {
+  const finderOrigins = [[0, 0], [0, QR_GRID_SIZE - 7], [QR_GRID_SIZE - 7, 0]]
+  for (const [originRow, originColumn] of finderOrigins) {
+    const localRow = row - originRow
+    const localColumn = column - originColumn
+    if (localRow >= 0 && localRow < 7 && localColumn >= 0 && localColumn < 7) {
+      return localRow === 0 || localRow === 6 || localColumn === 0 || localColumn === 6
+        || (localRow >= 2 && localRow <= 4 && localColumn >= 2 && localColumn <= 4)
+    }
+  }
+  return (row * 11 + column * 7 + row * column * 3) % 13 < 6
+}
+
+function VerificationQrCode({ onConfirm }: { onConfirm: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Confirm attendance with QR code"
+      style={styles.verificationQr}
+      onPress={onConfirm}
+    >
+      {Array.from({ length: QR_GRID_SIZE * QR_GRID_SIZE }).map((_, index) => {
+        const row = Math.floor(index / QR_GRID_SIZE)
+        const column = index % QR_GRID_SIZE
+        return (
+          <View
+            key={index}
+            style={[styles.verificationQrCell, qrCellFilled(row, column) ? styles.verificationQrCellFilled : null]}
+          />
+        )
+      })}
+    </Pressable>
+  )
+}
+
+function VerificationCodeScreen({
+  navigation,
+  route,
+}: {
+  navigation: any
+  route: { params: ScheduleClassDetailRouteParams }
+}) {
+  const params = route.params
+  const confirmAttendance = () => navigation.replace("AttendanceConfirmedApp", params)
+
+  return (
+    <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
+      <ProfileFlowHeader navigation={navigation} title="Verification Code" />
+      <ScrollView style={styles.page} contentContainerStyle={styles.verificationContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.verificationProgramCard}>
+          <View style={styles.scheduleCardTimeRow}>
+            <View style={[styles.scheduleCardDot, { backgroundColor: params.color }]} />
+            <Text style={styles.classDetailTime}>{params.time} · {params.date}</Text>
+          </View>
+          <View style={styles.classDetailProgramRow}>
+            <Image source={{ uri: params.image }} style={styles.verificationProgramImage} resizeMode="cover" />
+            <View style={styles.classDetailProgramCopy}>
+              <Text style={styles.classDetailProgramTitle}>{params.title}</Text>
+              <Text style={styles.classDetailLesson}>{params.lesson}</Text>
+              <View style={styles.confirmedMetaRow}>
+                <Feather name="globe" size={13} color="#777777" />
+                <Text style={styles.confirmedMetaText}>Cantonese</Text>
+              </View>
+              <View style={styles.confirmedMetaRow}>
+                <Feather name="map-pin" size={13} color="#777777" />
+                <Text style={styles.confirmedMetaText}>Shop 1B, Class Mall, Central, Hong Kong</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.reservationDivider} />
+
+        <View style={styles.verificationReady}>
+          <Text style={styles.verificationReadyTitle}>Ready for class?</Text>
+          <Text style={styles.verificationReadyText}>Have your code or QR code ready for the coach</Text>
+        </View>
+
+        <View style={styles.reservationDivider} />
+
+        <Text style={styles.verificationSectionTitle}>Class code</Text>
+        <Pressable accessibilityRole="button" style={styles.verificationCodeRow} onPress={confirmAttendance}>
+          {["1", "1", "1", "1"].map((digit, index) => (
+            <View key={`${digit}-${index}`} style={styles.verificationCodeBox}>
+              <Text style={styles.verificationCodeDigit}>{digit}</Text>
+            </View>
+          ))}
+        </Pressable>
+
+        <View style={styles.reservationDivider} />
+
+        <Text style={styles.verificationSectionTitle}>QR code</Text>
+        <VerificationQrCode onConfirm={confirmAttendance} />
+
+        <View style={styles.reservationDivider} />
+
+        <Text style={styles.classDetailFinePrint}>
+          <Text style={styles.reservationFineBrand}>zcare</Text>
+          {" "}helps protect your ClassZ booking by supporting class records, photos, coach feedback, and service-related issues under platform policy.{" "}
+          <Text style={styles.reservationLearnMore}>Learn More</Text>
+        </Text>
+
+        <View style={styles.reservationDivider} />
+
+        <Text style={styles.classDetailFinePrint}>
+          You agreed to our <Text style={styles.reservationLink}>Cancellation Policy</Text>,{" "}
+          <Text style={styles.reservationLink}>Refund Policy</Text> and{" "}
+          <Text style={styles.reservationLink}>Terms and Conditions</Text>. Confirmed bookings are non-refundable, including sickness or absence.
+        </Text>
+      </ScrollView>
+
+      <View style={styles.classDetailBottomNav}>
+        {(["Home", "Search", "Calendar", "Analytics"] as const).map((screen) => (
+          <Pressable key={screen} style={styles.favouriteBottomNavItem} onPress={() => navigation.navigate("AppTabs", { screen })}>
+            <Image
+              source={NAV_ICONS[screen]}
+              style={[styles.realTabIcon, { tintColor: screen === "Analytics" ? "#0ABAB5" : "#8A8A8A" }]}
+            />
+          </Pressable>
+        ))}
+        <Pressable style={styles.favouriteBottomNavItem} onPress={() => navigation.navigate("AppTabs", { screen: "Profile" })}>
+          <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.profileTabAvatar} resizeMode="cover" />
+        </Pressable>
+      </View>
+    </SafeAreaView>
+  )
+}
+
+function AttendanceConfirmedScreen({
+  navigation,
+  route,
+  flowAppState,
+}: {
+  navigation: any
+  route: { params: ScheduleClassDetailRouteParams }
+  flowAppState: FlowAppState
+}) {
+  const params = route.params
+  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || flowAppState.centres[0]
+  const bookingChild = BOOKING_CHILDREN.find((item) => item.name === params.child) || BOOKING_CHILDREN[0]
+
+  return (
+    <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
+      <ScrollView
+        style={styles.page}
+        contentContainerStyle={styles.attendanceContent}
+        showsVerticalScrollIndicator={false}
+        alwaysBounceVertical
+        contentInsetAdjustmentBehavior="automatic"
+      >
+        <Pressable
+          accessibilityLabel="Close attendance confirmation"
+          hitSlop={10}
+          style={styles.confirmedCloseButton}
+          onPress={() => navigation.navigate("AppTabs", { screen: "Calendar" })}
+        >
+          <Feather name="x" size={18} color="#8A8A8A" />
+        </Pressable>
+
+        <View style={styles.confirmedDivider} />
+
+        <Text style={styles.attendanceTitle}>Attendance has been confirmed{"\n"}successfully!</Text>
+
+        <View style={styles.verificationProgramCard}>
+          <View style={styles.scheduleCardTimeRow}>
+            <View style={[styles.scheduleCardDot, { backgroundColor: params.color }]} />
+            <Text style={styles.classDetailTime}>{params.time} · {params.date}</Text>
+          </View>
+          <View style={styles.classDetailProgramRow}>
+            <Image source={{ uri: params.image }} style={styles.attendanceProgramImage} resizeMode="cover" />
+            <View style={styles.classDetailProgramCopy}>
+              <Text style={styles.classDetailProgramTitle}>{params.title}</Text>
+              <Text style={styles.classDetailLesson}>{params.lesson}</Text>
+              <View style={styles.confirmedMetaRow}>
+                <Feather name="globe" size={13} color="#777777" />
+                <Text style={styles.confirmedMetaText}>Cantonese</Text>
+              </View>
+              <View style={styles.confirmedMetaRow}>
+                <Feather name="map-pin" size={13} color="#777777" />
+                <Text style={styles.confirmedMetaText}>Shop 1B, Class Mall, Central, Hong Kong</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.reservationDivider} />
+
+        <View style={styles.classDetailSection}>
+          <Text style={styles.classDetailSectionTitle}>Hosted by</Text>
+          <View style={styles.classDetailPersonRow}>
+            <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.classDetailAvatar} resizeMode="cover" />
+            <Text style={styles.classDetailPersonNameFill}>{centre.detailName || centre.name}</Text>
+            <View style={styles.confirmedRating}>
+              <MaterialCommunityIcons name="star" size={16} color="#222222" />
+              <Text style={styles.confirmedRatingText}>{centre.rating.toFixed(2)}</Text>
+            </View>
+          </View>
+          <View style={styles.classDetailPersonRow}>
+            <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.classDetailAvatar} resizeMode="cover" />
+            <View style={styles.classDetailPersonCopy}>
+              <Text style={styles.classDetailPersonName}>Athena Yeung</Text>
+              <Text style={styles.classDetailPersonRole}>Program Coach</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.reservationDivider} />
+
+        <View style={styles.classDetailSection}>
+          <Text style={styles.classDetailSectionTitle}>Booking for</Text>
+          <View style={styles.classDetailPersonRow}>
+            <Image source={{ uri: bookingChild.image }} style={styles.classDetailAvatar} resizeMode="cover" />
+            <Text style={styles.classDetailPersonNameFill}>{params.child}</Text>
+          </View>
+        </View>
+
+        <View style={styles.reservationDivider} />
+
+        <View style={styles.attendanceFooter}>
+          <Text style={styles.attendanceFeedback}>Feedback arriving within 7 days</Text>
+          <Pressable
+            accessibilityRole="button"
+            style={styles.classDetailVerificationButton}
+            onPress={() => navigation.navigate("AppTabs", { screen: "Profile" })}
+          >
+            <Text style={styles.classDetailVerificationText}>Go to ClassZ Passport</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -4372,6 +4752,15 @@ export default function App() {
             <Stack.Screen name="FavouriteApp" options={{ headerShown: false }}>
               {(props) => <FavouriteScreen {...props} />}
             </Stack.Screen>
+            <Stack.Screen name="ScheduleClassDetailApp" options={{ headerShown: false }}>
+              {(props) => <ScheduleClassDetailScreen {...props} flowAppState={flowAppState} />}
+            </Stack.Screen>
+            <Stack.Screen name="VerificationCodeApp" options={{ headerShown: false }}>
+              {(props) => <VerificationCodeScreen {...props} />}
+            </Stack.Screen>
+            <Stack.Screen name="AttendanceConfirmedApp" options={{ headerShown: false }}>
+              {(props) => <AttendanceConfirmedScreen {...props} flowAppState={flowAppState} />}
+            </Stack.Screen>
             <Stack.Screen name="LearningRecordsApp" options={{ title: "Learning Records" }}>
               {(props) => <LearningRecordsAppScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
@@ -5338,6 +5727,121 @@ const styles = StyleSheet.create({
   scheduleCardChildAvatar: { width: 21, height: 21, borderRadius: 11, backgroundColor: "#E5E7EB" },
   scheduleCardChildName: { fontSize: FONT.micro, color: "#444444" },
   scheduleCardCentre: { fontSize: FONT.micro, lineHeight: 13, color: "#8A8A8A" },
+  classDetailContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+    gap: 18,
+  },
+  classDetailProgramCard: {
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 10,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 13,
+    elevation: 3,
+  },
+  classDetailTime: { fontSize: FONT.caption, color: "#555555" },
+  classDetailProgramRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  classDetailProgramImage: { width: 104, height: 104, borderRadius: 10, backgroundColor: "#E5E7EB" },
+  classDetailProgramCopy: { flex: 1, gap: 6 },
+  classDetailProgramTitle: { fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
+  classDetailLesson: { fontSize: FONT.body, fontWeight: "600", color: "#333333" },
+  classDetailVerification: { gap: 12, paddingHorizontal: 16 },
+  classDetailVerificationHint: { fontSize: FONT.caption, fontWeight: "600", color: "#555555", textAlign: "center" },
+  classDetailVerificationButton: {
+    minHeight: 46,
+    borderRadius: 9,
+    backgroundColor: "#2A2A2A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  classDetailVerificationText: { fontSize: FONT.body, fontWeight: "600", color: "#FFFFFF" },
+  classDetailSection: { gap: 15 },
+  classDetailSectionTitle: { fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
+  classDetailPersonRow: { flexDirection: "row", alignItems: "center", gap: 13 },
+  classDetailAvatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: "#E5E7EB" },
+  classDetailPersonCopy: { flex: 1, gap: 3 },
+  classDetailPersonName: { fontSize: FONT.bodyLg, lineHeight: 19, fontWeight: "600", color: "#222222" },
+  classDetailPersonNameFill: { flex: 1, fontSize: FONT.bodyLg, lineHeight: 19, fontWeight: "600", color: "#222222" },
+  classDetailPersonRole: { fontSize: FONT.body, color: "#7A7A7A" },
+  classDetailFinePrint: { fontSize: FONT.caption, lineHeight: 18, color: "#6B6B6B" },
+  classDetailBottomNav: {
+    height: 64,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#DADADA",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  verificationContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+    gap: 18,
+  },
+  verificationProgramCard: {
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    gap: 9,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 13,
+    elevation: 3,
+  },
+  verificationProgramImage: { width: 92, height: 92, borderRadius: 9, backgroundColor: "#E5E7EB" },
+  verificationReady: { alignItems: "center", gap: 6, paddingVertical: 2 },
+  verificationReadyTitle: { fontSize: FONT.body, color: "#444444" },
+  verificationReadyText: { fontSize: FONT.caption, color: "#666666", textAlign: "center" },
+  verificationSectionTitle: { fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
+  verificationCodeRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-around", gap: 12 },
+  verificationCodeBox: {
+    flex: 1,
+    maxWidth: 64,
+    height: 42,
+    borderWidth: 1,
+    borderColor: "#333333",
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  verificationCodeDigit: { fontSize: FONT.body, color: "#333333" },
+  verificationQr: {
+    width: 161,
+    height: 161,
+    padding: 7,
+    alignSelf: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    backgroundColor: "#FFFFFF",
+  },
+  verificationQrCell: { width: 7, height: 7, backgroundColor: "#FFFFFF" },
+  verificationQrCellFilled: { backgroundColor: "#000000" },
+  attendanceContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 52,
+    gap: 16,
+  },
+  attendanceTitle: { fontSize: FONT.heading, lineHeight: 25, fontWeight: "700", color: "#111111" },
+  attendanceProgramImage: { width: 92, height: 92, borderRadius: 9, backgroundColor: "#E5E7EB" },
+  attendanceFooter: { gap: 10, marginTop: 48 },
+  attendanceFeedback: { fontSize: FONT.caption, color: "#777777", textAlign: "center" },
   profileScreen: { flex: 1, backgroundColor: "#FFFFFF" },
   profileContent: {
     width: "100%",
