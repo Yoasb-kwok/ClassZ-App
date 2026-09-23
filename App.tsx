@@ -81,6 +81,7 @@ type RootStackParamList = {
   ProgramListApp: undefined
   ClassOptionApp: undefined
   ReservationApp: { schedule?: ClassScheduleOption } | undefined
+  ReservationConfirmedApp: { schedule: ClassScheduleOption; total: number }
   SelectChildApp: undefined
   PromoteCodeApp: undefined
   LearningRecordsApp: undefined
@@ -1668,6 +1669,7 @@ function ReservationAppScreen({
   const active = flowAppState.programs.find((p) => p.id === flowAppState.selectedProgramId) || flowAppState.programs[0]
   const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || flowAppState.centres[0]
   const student = flowAppState.students.find((item) => item.id === flowAppState.selectedStudentId) || flowAppState.students[0]
+  const selectedBookingChild = BOOKING_CHILDREN.find((item) => item.id === student.id) || BOOKING_CHILDREN[0]
   const schedule = route.params?.schedule ?? buildProgramSchedule(
     active,
     0,
@@ -1681,12 +1683,12 @@ function ReservationAppScreen({
   const lessonTotal = schedule.price * lessonCount
   const limitedDiscount = schedule.originalPrice ? (schedule.originalPrice - schedule.price) * lessonCount : 0
   const platformFee = 5
-  const promoteDiscount = flowAppState.couponCode.trim() ? 15 : 0
+  const promoteDiscount = flowAppState.couponCode.trim() ? 60 : 0
   const total = (schedule.originalPrice ?? schedule.price) * lessonCount + platformFee - promoteDiscount
   const attendeeAvatars = [
     FIGMA_ASSETS.reservation.host,
     FIGMA_ASSETS.reservation.coach,
-    FIGMA_ASSETS.reservation.child,
+    selectedBookingChild.image,
   ]
 
   const appliedPromoteCode = flowAppState.couponCode.trim()
@@ -1782,7 +1784,7 @@ function ReservationAppScreen({
         <View style={styles.reservationSection}>
           <Text style={styles.reservationSectionTitle}>Booking for</Text>
           <View style={styles.reservationPersonRow}>
-            <Image source={{ uri: FIGMA_ASSETS.reservation.child }} style={styles.reservationPersonImage} resizeMode="cover" />
+            <Image source={{ uri: selectedBookingChild.image }} style={styles.reservationPersonImage} resizeMode="cover" />
             <Text style={styles.reservationBookingName}>{student.name}</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="Switch child" hitSlop={8} onPress={() => navigation.navigate("SelectChildApp")}>
               <Text style={styles.reservationSwitch}>Switch</Text>
@@ -1857,7 +1859,7 @@ function ReservationAppScreen({
                 total,
               }
               setFlowAppState((prev) => ({ ...prev, bookings: [booking, ...prev.bookings] }))
-              navigation.navigate("AppTabs", { screen: "Calendar" })
+              navigation.navigate("ReservationConfirmedApp", { schedule, total })
             }}
           >
             <Text style={styles.reservationReserveButtonText}>Reserve</Text>
@@ -1908,6 +1910,121 @@ function ReservationAppScreen({
   )
 }
 
+function ReservationConfirmedScreen({
+  navigation,
+  route,
+  flowAppState,
+}: {
+  navigation: any
+  route: { params: { schedule: ClassScheduleOption; total: number } }
+  flowAppState: FlowAppState
+}) {
+  const active = flowAppState.programs.find((item) => item.id === flowAppState.selectedProgramId) || flowAppState.programs[0]
+  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || flowAppState.centres[0]
+  const student = flowAppState.students.find((item) => item.id === flowAppState.selectedStudentId) || flowAppState.students[0]
+  const selectedBookingChild = BOOKING_CHILDREN.find((item) => item.id === student.id) || BOOKING_CHILDREN[0]
+  const { schedule, total } = route.params
+
+  const openTimetable = () => navigation.navigate("AppTabs", { screen: "Calendar" })
+
+  return (
+    <SafeAreaView style={styles.confirmedScreen} edges={["top", "bottom"]}>
+      <ScrollView
+        style={styles.page}
+        contentContainerStyle={styles.confirmedContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close confirmation"
+          hitSlop={10}
+          style={styles.confirmedCloseButton}
+          onPress={openTimetable}
+        >
+          <Feather name="x" size={18} color="#8A8A8A" />
+        </Pressable>
+
+        <View style={styles.confirmedDivider} />
+
+        <Text style={styles.confirmedTitle}>
+          Your reservation has been{"\n"}confirmed successfully!
+        </Text>
+
+        <View style={styles.confirmedProgramCard}>
+          <Image
+            source={{ uri: FIGMA_ASSETS.reservation.program }}
+            style={styles.confirmedProgramImage}
+            resizeMode="cover"
+          />
+          <View style={styles.confirmedProgramCopy}>
+            <Text style={styles.confirmedProgramTitle}>{active.title}</Text>
+            <View style={styles.confirmedMetaRow}>
+              <Feather name="globe" size={14} color="#777777" />
+              <Text style={styles.confirmedMetaText}>{schedule.language}</Text>
+            </View>
+            <View style={styles.confirmedMetaRow}>
+              <Feather name="map-pin" size={14} color="#777777" />
+              <Text style={styles.confirmedMetaText}>{schedule.address}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.confirmedDivider} />
+
+        <View style={styles.confirmedSection}>
+          <Text style={styles.confirmedSectionTitle}>Hosted by</Text>
+          <View style={styles.confirmedPersonRow}>
+            <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.confirmedAvatar} resizeMode="cover" />
+            <Text style={styles.confirmedPersonNameFill}>{centre.detailName || centre.name}</Text>
+            <View style={styles.confirmedRating}>
+              <MaterialCommunityIcons name="star" size={16} color="#222222" />
+              <Text style={styles.confirmedRatingText}>{centre.rating.toFixed(2)}</Text>
+            </View>
+          </View>
+          <View style={styles.confirmedPersonRow}>
+            <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.confirmedAvatar} resizeMode="cover" />
+            <View style={styles.confirmedPersonCopy}>
+              <Text style={styles.confirmedPersonName}>{schedule.coachName}</Text>
+              <Text style={styles.confirmedPersonRole}>Program Coach</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.confirmedDivider} />
+
+        <View style={styles.confirmedSection}>
+          <Text style={styles.confirmedSectionTitle}>Booking for</Text>
+          <View style={styles.confirmedPersonRow}>
+            <Image source={{ uri: selectedBookingChild.image }} style={styles.confirmedAvatar} resizeMode="cover" />
+            <Text style={styles.confirmedPersonNameFill}>{student.name}</Text>
+          </View>
+        </View>
+
+        <View style={styles.confirmedDivider} />
+
+        <View style={styles.confirmedPaymentRow}>
+          <Text style={styles.confirmedPaymentLabel}>Payment amount</Text>
+          <Text style={styles.confirmedPaymentValue}>${formatAmount(total)}</Text>
+        </View>
+
+        <View style={styles.confirmedDivider} />
+
+        <View style={styles.confirmedFooter}>
+          <Text style={styles.confirmedPrompt}>Want to check your schedule?</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go to timetable"
+            style={styles.confirmedTimetableButton}
+            onPress={openTimetable}
+          >
+            <Text style={styles.confirmedTimetableButtonText}>Go to Timetable</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  )
+}
+
 const BOOKING_CHILDREN = [
   {
     id: "s1",
@@ -1918,6 +2035,8 @@ const BOOKING_CHILDREN = [
     age: 6,
     sen: true,
     image: FIGMA_ASSETS.reservation.child,
+    imageScale: 1,
+    imageOffsetY: 0,
   },
   {
     id: "s4",
@@ -1927,7 +2046,9 @@ const BOOKING_CHILDREN = [
     connected: false,
     age: 6,
     sen: true,
-    image: FIGMA_ASSETS.reservation.child,
+    image: FIGMA_ASSETS.reservation.program,
+    imageScale: 1.7,
+    imageOffsetY: 10,
   },
 ] as const
 
@@ -1976,7 +2097,16 @@ function SelectChildScreen({
             >
               <View style={styles.childCardRow}>
                 <View style={styles.childCardIdentity}>
-                  <Image source={{ uri: child.image }} style={styles.childCardAvatar} resizeMode="cover" />
+                  <View style={styles.childCardAvatar}>
+                    <Image
+                      source={{ uri: child.image }}
+                      style={[
+                        styles.childCardAvatarImage,
+                        { transform: [{ scale: child.imageScale }, { translateY: child.imageOffsetY }] },
+                      ]}
+                      resizeMode="cover"
+                    />
+                  </View>
                   <Text style={styles.childCardName}>{child.name}</Text>
                 </View>
                 <View style={styles.childCardStats}>
@@ -1991,7 +2121,7 @@ function SelectChildScreen({
                   <View style={styles.childSchoolRow}>
                     <Text style={styles.childSchoolName}>
                       <Text style={styles.childSchoolMark}>z</Text>
-                      school
+                      .school
                     </Text>
                     <Text style={[styles.childSchoolStatus, child.connected ? styles.childSchoolConnected : styles.childSchoolMuted]}>
                       {child.connected ? "connected" : "not connected"}
@@ -2005,7 +2135,7 @@ function SelectChildScreen({
                     </View>
                     {child.sen ? (
                       <View style={styles.childCardMeta}>
-                        <MaterialCommunityIcons name="check-circle-outline" size={14} color="#0ABAB5" />
+                        <MaterialCommunityIcons name="check-circle-outline" size={14} color="#777777" />
                         <Text style={styles.childCardMetaText}>SEN</Text>
                       </View>
                     ) : null}
@@ -2063,7 +2193,9 @@ function PromoteCodeScreen({
           <View key={voucherId} style={styles.promoteCard}>
             <View style={styles.promoteCardHeader}>
               <View style={styles.promoteOfferRow}>
-                <MaterialCommunityIcons name="ticket-confirmation-outline" size={18} color="#0ABAB5" />
+                <View style={styles.promoteTicketIcon}>
+                  <MaterialCommunityIcons name="percent" size={12} color="#FFFFFF" />
+                </View>
                 <Text style={styles.promoteOffer}>$60 OFF</Text>
               </View>
               <Text style={styles.promoteExpiry}>Until Mar 04, 2026</Text>
@@ -3415,6 +3547,9 @@ export default function App() {
             <Stack.Screen name="ReservationApp" options={{ headerShown: false }}>
               {(props) => <ReservationAppScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
+            <Stack.Screen name="ReservationConfirmedApp" options={{ headerShown: false }}>
+              {(props) => <ReservationConfirmedScreen {...props} flowAppState={flowAppState} />}
+            </Stack.Screen>
             <Stack.Screen name="SelectChildApp" options={{ headerShown: false }}>
               {(props) => <SelectChildScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
@@ -4250,6 +4385,68 @@ const styles = StyleSheet.create({
   reservationFineBrand: { fontSize: FONT.bodyLg, fontWeight: "700", color: "#0ABAB5" },
   reservationLearnMore: { fontSize: FONT.secondary, color: "#222222", textDecorationLine: "underline" },
   reservationLink: { color: "#2F6BFF", textDecorationLine: "underline" },
+  confirmedScreen: { flex: 1, backgroundColor: "#FFFFFF" },
+  confirmedContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 22,
+    gap: 18,
+  },
+  confirmedCloseButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#F1F2F2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmedDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "#E4E4E4" },
+  confirmedTitle: { fontSize: FONT.heading, lineHeight: 25, fontWeight: "700", color: "#111111" },
+  confirmedProgramCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.09,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 13,
+    elevation: 4,
+  },
+  confirmedProgramImage: { width: 86, height: 86, borderRadius: 10, backgroundColor: "#E5E7EB" },
+  confirmedProgramCopy: { flex: 1, gap: 7 },
+  confirmedProgramTitle: { fontSize: FONT.headline, fontWeight: "500", color: "#222222" },
+  confirmedMetaRow: { flexDirection: "row", alignItems: "flex-start", gap: 7 },
+  confirmedMetaText: { flex: 1, fontSize: FONT.caption, lineHeight: 17, color: "#777777" },
+  confirmedSection: { gap: 16 },
+  confirmedSectionTitle: { fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
+  confirmedPersonRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  confirmedAvatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: "#E5E7EB" },
+  confirmedPersonCopy: { flex: 1, gap: 3 },
+  confirmedPersonName: { fontSize: FONT.bodyLg, lineHeight: 19, fontWeight: "600", color: "#222222" },
+  confirmedPersonNameFill: { flex: 1, fontSize: FONT.bodyLg, lineHeight: 19, fontWeight: "600", color: "#222222" },
+  confirmedPersonRole: { fontSize: FONT.body, color: "#7A7A7A" },
+  confirmedRating: { flexDirection: "row", alignItems: "center", gap: 4 },
+  confirmedRatingText: { fontSize: FONT.body, color: "#222222" },
+  confirmedPaymentRow: { flexDirection: "row", alignItems: "center", gap: 24 },
+  confirmedPaymentLabel: { fontSize: FONT.headline, fontWeight: "600", color: "#333333" },
+  confirmedPaymentValue: { fontSize: FONT.headline, color: "#333333" },
+  confirmedFooter: { gap: 12, marginTop: 2 },
+  confirmedPrompt: { fontSize: FONT.caption, color: "#777777", textAlign: "center" },
+  confirmedTimetableButton: {
+    minHeight: 48,
+    borderRadius: 10,
+    backgroundColor: "#2A2A2A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmedTimetableButtonText: { fontSize: FONT.body, fontWeight: "600", color: "#FFFFFF" },
   childSelectContent: { width: "100%", maxWidth: 520, alignSelf: "center", paddingHorizontal: 20, paddingTop: 8, paddingBottom: 36, gap: 16 },
   childCard: {
     borderRadius: 16,
@@ -4267,24 +4464,25 @@ const styles = StyleSheet.create({
   },
   childCardSelected: { borderColor: "#7EDCD8" },
   childCardRow: { flexDirection: "row", alignItems: "stretch", gap: 16 },
-  childCardIdentity: { width: 112, alignItems: "center", justifyContent: "space-between" },
-  childCardAvatar: { width: 96, height: 96, borderRadius: 48, backgroundColor: "#E5E7EB" },
-  childCardName: { marginTop: 12, fontSize: FONT.headerTitle, fontWeight: "700", color: "#222222", textAlign: "center" },
+  childCardIdentity: { width: 128, alignItems: "center", justifyContent: "space-between" },
+  childCardAvatar: { width: 96, height: 96, borderRadius: 48, overflow: "hidden", backgroundColor: "#E5E7EB" },
+  childCardAvatarImage: { width: "100%", height: "100%" },
+  childCardName: { marginTop: 12, fontSize: FONT.heading, lineHeight: 24, fontWeight: "700", color: "#111111", textAlign: "center" },
   childCardStats: { flex: 1, gap: 6 },
   childCardYearValue: { fontSize: FONT.title, fontWeight: "700", color: "#222222", lineHeight: 26 },
-  childCardYearLabel: { fontSize: FONT.body, fontWeight: "400", color: "#333333" },
+  childCardYearLabel: { fontSize: FONT.body, fontWeight: "600", color: "#333333" },
   childCardDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "#E4E4E4", marginVertical: 4 },
   childLevelBadge: { alignSelf: "flex-start", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   childLevelBeginner: { backgroundColor: "#E5F7F6" },
-  childLevelAchiever: { backgroundColor: "#F3F3F3" },
+  childLevelAchiever: { backgroundColor: "#E5F7F6" },
   childLevelText: { fontSize: FONT.caption, fontWeight: "600" },
-  childLevelBeginnerText: { color: "#3AADA8" },
-  childLevelAchieverText: { color: "#9A9A9A" },
+  childLevelBeginnerText: { color: "#555555" },
+  childLevelAchieverText: { color: "#555555" },
   childSchoolRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   childSchoolName: { fontSize: FONT.bodyLg, fontWeight: "700", color: "#222222" },
   childSchoolMark: { color: "#0ABAB5", fontWeight: "700" },
   childSchoolStatus: { fontSize: FONT.body, fontWeight: "400" },
-  childSchoolConnected: { color: "#0ABAB5" },
+  childSchoolConnected: { color: "#0ABAB5", fontWeight: "600" },
   childSchoolMuted: { color: "#A3A3A3" },
   childCardMetaRow: { flexDirection: "row", alignItems: "center", gap: 14 },
   childCardMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
@@ -4317,6 +4515,7 @@ const styles = StyleSheet.create({
   },
   promoteCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   promoteOfferRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  promoteTicketIcon: { width: 28, height: 18, borderRadius: 4, backgroundColor: "#0ABAB5", alignItems: "center", justifyContent: "center" },
   promoteOffer: { fontSize: FONT.heading, fontWeight: "700", color: "#222222" },
   promoteExpiry: { fontSize: FONT.secondary, color: "#8A8A8A" },
   promoteCardBody: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12 },
