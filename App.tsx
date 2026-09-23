@@ -24,6 +24,8 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  type StyleProp,
+  type TextStyle,
   View,
 } from "react-native"
 import {
@@ -99,6 +101,9 @@ type RootStackParamList = {
   ChildDetailsApp: { childId: string }
   AddChildProfileApp: undefined
   FavouriteApp: undefined
+  TransactionsApp: undefined
+  TransactionDetailApp: { transactionId: string }
+  CompletedClassDetailApp: { transactionId: string }
   ScheduleClassDetailApp: ScheduleClassDetailRouteParams
   VerificationCodeApp: ScheduleClassDetailRouteParams
   AttendanceConfirmedApp: ScheduleClassDetailRouteParams
@@ -1239,6 +1244,14 @@ function formatAmount(value: number): string {
   return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ",")
 }
 
+function ZCareWord({ style }: { style?: StyleProp<TextStyle> }) {
+  return (
+    <Text style={[styles.zCareWord, style]}>
+      <Text style={styles.zCareMark}>z</Text>care
+    </Text>
+  )
+}
+
 function ClassOptionScreen({
   navigation,
   flowAppState,
@@ -1563,6 +1576,58 @@ const SCHEDULE_CALENDAR_DAYS = [
   27, 28, 29, 30, 1, 2, 3,
 ] as const
 
+type TransactionRecord = {
+  id: string
+  title: string
+  image: string
+  child: string
+  childImage: string
+  completed: boolean
+}
+
+const TRANSACTIONS: TransactionRecord[] = [
+  {
+    id: "rising-star",
+    title: "Rising Star Academic Program",
+    image: FIGMA_ASSETS.main.recommend1,
+    child: "Shelly Wong",
+    childImage: FIGMA_ASSETS.reservation.coach,
+    completed: false,
+  },
+  {
+    id: "painting-current",
+    title: "ClassZ Painting Program",
+    image: FIGMA_ASSETS.main.recommend2,
+    child: "Lucas Wong",
+    childImage: FIGMA_ASSETS.reservation.child,
+    completed: false,
+  },
+  {
+    id: "painting-completed",
+    title: "ClassZ Painting Program",
+    image: FIGMA_ASSETS.main.recommend2,
+    child: "Lucas Wong",
+    childImage: FIGMA_ASSETS.reservation.child,
+    completed: true,
+  },
+  {
+    id: "guitar-completed-1",
+    title: "ClassZ Guitar Program",
+    image: FIGMA_ASSETS.reservation.program,
+    child: "Charlie Wong",
+    childImage: FIGMA_ASSETS.reservation.child,
+    completed: true,
+  },
+  {
+    id: "guitar-completed-2",
+    title: "ClassZ Guitar Program",
+    image: FIGMA_ASSETS.reservation.program,
+    child: "Charlie Wong",
+    childImage: FIGMA_ASSETS.reservation.child,
+    completed: true,
+  },
+]
+
 function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flowAppState: FlowAppState }) {
   const [view, setView] = useState<ScheduleView>("calendar")
   const [selectedScheduleChildId, setSelectedScheduleChildId] = useState<string | null>(null)
@@ -1661,7 +1726,15 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
             <Text style={styles.scheduleScopeText}>{showingAllChildren ? "All" : selectedStudent.name}</Text>
             <Feather name={scopeMenuOpen ? "chevron-up" : "chevron-down"} size={20} color="#333333" />
           </Pressable>
-          {view === "upcoming" ? <Text style={styles.scheduleTransactions}>Transactions</Text> : null}
+          {view === "upcoming" ? (
+            <Pressable
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={() => navigation.navigate("TransactionsApp")}
+            >
+              <Text style={styles.scheduleTransactions}>Transactions</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {scopeMenuOpen ? (
@@ -1810,6 +1883,340 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
   )
 }
 
+function TransactionsScreen({ navigation }: { navigation: any }) {
+  return (
+    <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
+      <ProfileFlowHeader navigation={navigation} title="Transactions" />
+      <ScrollView
+        style={styles.page}
+        contentContainerStyle={styles.transactionsContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {TRANSACTIONS.map((transaction) => (
+          <Pressable
+            key={transaction.id}
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${transaction.title} transaction`}
+            style={({ pressed }) => [styles.transactionCard, pressed ? styles.transactionCardPressed : null]}
+            onPress={() => navigation.navigate(
+              transaction.completed ? "CompletedClassDetailApp" : "TransactionDetailApp",
+              { transactionId: transaction.id },
+            )}
+          >
+            <View style={styles.transactionTitleRow}>
+              <Text style={styles.transactionTitle} numberOfLines={1}>{transaction.title}</Text>
+              {transaction.completed ? <Text style={styles.transactionCompleted}>Completed</Text> : null}
+            </View>
+            <View style={styles.transactionMainRow}>
+              <Image source={{ uri: transaction.image }} style={styles.transactionImage} resizeMode="cover" />
+              <View style={styles.transactionCopy}>
+                <Text style={styles.transactionSchedule}>8 lessons · Oct 23 - Nov 28</Text>
+                <View style={styles.transactionChildRow}>
+                  <Image source={{ uri: transaction.childImage }} style={styles.transactionChildImage} resizeMode="cover" />
+                  <Text style={styles.transactionChildName}>{transaction.child}</Text>
+                </View>
+                <View style={styles.transactionCentreRow}>
+                  <Feather name="map-pin" size={13} color="#8A8A8A" />
+                  <Text style={styles.transactionCentre} numberOfLines={2}>ClassZ Playgroup Bright Kids Drawing Centre</Text>
+                </View>
+                <Text style={styles.transactionTotal}>$2,392 <Text style={styles.transactionTotalLabel}>total</Text></Text>
+              </View>
+            </View>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </SafeAreaView>
+  )
+}
+
+function TransactionDetailScreen({
+  navigation,
+  route,
+  flowAppState,
+}: {
+  navigation: any
+  route: { params: { transactionId: string } }
+  flowAppState: FlowAppState
+}) {
+  const transaction = TRANSACTIONS.find((item) => item.id === route.params.transactionId) || TRANSACTIONS[0]
+  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || flowAppState.centres[0]
+  const [datesExpanded, setDatesExpanded] = useState(true)
+  const lessonDates = buildLessonDates(0)
+
+  return (
+    <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
+      <ProfileFlowHeader navigation={navigation} title="Transaction Detail" />
+      <ScrollView
+        style={styles.page}
+        contentContainerStyle={styles.transactionDetailContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.transactionDetailProgramCard}>
+          <Image source={{ uri: transaction.image }} style={styles.transactionDetailProgramImage} resizeMode="cover" />
+          <View style={styles.transactionDetailProgramCopy}>
+            <Text style={styles.transactionDetailProgramTitle}>{transaction.title}</Text>
+            <View style={styles.confirmedMetaRow}>
+              <Feather name="globe" size={14} color="#777777" />
+              <Text style={styles.confirmedMetaText}>Cantonese</Text>
+            </View>
+            <View style={styles.confirmedMetaRow}>
+              <Feather name="map-pin" size={14} color="#777777" />
+              <Text style={styles.confirmedMetaText}>Shop 1B, Class Mall, Central, Hong Kong</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.transactionDetailSection}>
+          <Text style={styles.transactionDetailSectionTitle}>Hosted by</Text>
+          <View style={styles.transactionDetailPersonRow}>
+            <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.transactionDetailAvatar} resizeMode="cover" />
+            <Text style={styles.transactionDetailPersonNameFill}>{centre.detailName || centre.name}</Text>
+            <View style={styles.confirmedRating}>
+              <MaterialCommunityIcons name="star" size={16} color="#222222" />
+              <Text style={styles.confirmedRatingText}>{centre.rating.toFixed(2)}</Text>
+            </View>
+          </View>
+          <View style={styles.transactionDetailPersonRow}>
+            <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.transactionDetailAvatar} resizeMode="cover" />
+            <View style={styles.transactionDetailPersonCopy}>
+              <Text style={styles.transactionDetailPersonName}>Athena Yeung</Text>
+              <Text style={styles.transactionDetailPersonRole}>Program Coach</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.transactionDetailDivider} />
+
+        <View style={styles.transactionDetailSection}>
+          <Text style={styles.transactionDetailSectionTitle}>Booking for</Text>
+          <View style={styles.transactionDetailPersonRow}>
+            <Image source={{ uri: transaction.childImage }} style={styles.transactionDetailAvatar} resizeMode="cover" />
+            <Text style={styles.transactionDetailPersonNameFill}>{transaction.child}</Text>
+          </View>
+        </View>
+
+        <View style={styles.transactionDetailDivider} />
+
+        <View style={styles.transactionDetailCard}>
+          <View style={styles.transactionDetailDatesHeader}>
+            <Text style={styles.transactionDetailScheduleTitle}>8 lessons · Oct 23 - Nov 28</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: datesExpanded }}
+              style={styles.transactionDetailDatesToggle}
+              onPress={() => setDatesExpanded((expanded) => !expanded)}
+            >
+              <Text style={styles.transactionDetailDatesToggleText}>{datesExpanded ? "Hide full dates" : "Show full dates"}</Text>
+              <Feather name={datesExpanded ? "chevron-up" : "chevron-down"} size={14} color="#777777" />
+            </Pressable>
+          </View>
+          {datesExpanded ? (
+            <View style={styles.transactionDetailLessonList}>
+              <Text style={styles.transactionDetailLessonHeading}>Lesson dates</Text>
+              <LessonDateRows dates={lessonDates} />
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.transactionDetailCard}>
+          <Text style={styles.transactionDetailSectionTitle}>Payment Breakdown</Text>
+          <Text style={styles.transactionProtection}>
+            Your booking is protected by <ZCareWord style={styles.transactionProtectionBrand} />
+          </Text>
+          <View style={styles.transactionPaymentRow}>
+            <Text style={styles.transactionPaymentLabel}>299 x 8 lessons</Text>
+            <Text style={styles.transactionPaymentValue}>$2,392</Text>
+          </View>
+          <View style={styles.transactionPaymentRow}>
+            <Text style={styles.transactionPaymentLabel}>Limited discount</Text>
+            <Text style={styles.transactionPaymentDiscount}>-$800</Text>
+          </View>
+          <View style={styles.transactionPaymentRow}>
+            <Text style={styles.transactionLoyalty}>ⓘ LOYAL2026</Text>
+            <Text style={styles.transactionPaymentDiscount}>-$15</Text>
+          </View>
+          <View style={styles.transactionPaymentRow}>
+            <Text style={styles.transactionPaymentLabel}>Platform fee</Text>
+            <Text style={styles.transactionPaymentValue}>$5</Text>
+          </View>
+          <View style={styles.transactionPaymentDivider} />
+          <View style={styles.transactionPaymentRow}>
+            <Text style={styles.transactionPaymentTotal}>Total (HKD)</Text>
+            <Text style={styles.transactionPaymentTotal}>$3,182</Text>
+          </View>
+        </View>
+      </ScrollView>
+
+      <View style={styles.classDetailBottomNav}>
+        {(["Home", "Search", "Calendar", "Analytics"] as const).map((screen) => (
+          <Pressable key={screen} style={styles.favouriteBottomNavItem} onPress={() => navigation.navigate("AppTabs", { screen })}>
+            <Image
+              source={NAV_ICONS[screen]}
+              style={[styles.realTabIcon, { tintColor: screen === "Analytics" ? "#0ABAB5" : "#8A8A8A" }]}
+            />
+          </Pressable>
+        ))}
+        <Pressable style={styles.favouriteBottomNavItem} onPress={() => navigation.navigate("AppTabs", { screen: "Profile" })}>
+          <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.profileTabAvatar} resizeMode="cover" />
+        </Pressable>
+      </View>
+    </SafeAreaView>
+  )
+}
+
+function CompletedClassDetailScreen({
+  navigation,
+  route,
+  flowAppState,
+}: {
+  navigation: any
+  route: { params: { transactionId: string } }
+  flowAppState: FlowAppState
+}) {
+  const transaction = TRANSACTIONS.find((item) => item.id === route.params.transactionId) || TRANSACTIONS[3]
+  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || flowAppState.centres[0]
+  const [rating, setRating] = useState(4)
+  const [review, setReview] = useState("")
+
+  return (
+    <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
+      <ProfileFlowHeader navigation={navigation} title="Class Detail" />
+      <KeyboardAvoidingView style={styles.flex1} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView
+          style={styles.page}
+          contentContainerStyle={styles.completedClassContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.classDetailProgramCard}>
+            <View style={styles.scheduleCardTimeRow}>
+              <View style={[styles.scheduleCardDot, { backgroundColor: "#0ABAB5" }]} />
+              <Text style={styles.classDetailTime}>10:00AM-01:00PM · Sept 02</Text>
+            </View>
+            <View style={styles.classDetailProgramRow}>
+              <Image source={{ uri: transaction.image }} style={styles.classDetailProgramImage} resizeMode="cover" />
+              <View style={styles.classDetailProgramCopy}>
+                <Text style={styles.classDetailProgramTitle}>{transaction.title}</Text>
+                <Text style={styles.classDetailLesson}>Lesson 1 of 8</Text>
+                <View style={styles.confirmedMetaRow}>
+                  <Feather name="globe" size={14} color="#777777" />
+                  <Text style={styles.confirmedMetaText}>Cantonese</Text>
+                </View>
+                <View style={styles.confirmedMetaRow}>
+                  <Feather name="map-pin" size={14} color="#777777" />
+                  <Text style={styles.confirmedMetaText}>Shop 1B, Class Mall, Central, Hong Kong</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.transactionDetailDivider} />
+
+          <View style={styles.completedRatingSection}>
+            <Text style={styles.completedRatingTitle}>Rate this program</Text>
+            <Text style={styles.completedRatingHint}>Share your feedback to help us improve future lessons</Text>
+            <View style={styles.completedStarsRow}>
+              {[1, 2, 3, 4, 5].map((value) => (
+                <Pressable
+                  key={value}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${value} star rating`}
+                  accessibilityState={{ selected: rating === value }}
+                  hitSlop={6}
+                  onPress={() => setRating(value)}
+                >
+                  <MaterialCommunityIcons
+                    name={value <= rating ? "star" : "star-outline"}
+                    size={38}
+                    color="#222222"
+                  />
+                </Pressable>
+              ))}
+            </View>
+            <TextInput
+              style={styles.completedReviewInput}
+              placeholder="Review (optional)"
+              placeholderTextColor="#B7B7B7"
+              value={review}
+              onChangeText={setReview}
+              multiline
+              textAlignVertical="top"
+            />
+            <Pressable
+              accessibilityRole="button"
+              style={styles.completedRateButton}
+              onPress={() => Alert.alert("Thank you", `Your ${rating}-star review has been submitted.`)}
+            >
+              <Text style={styles.completedRateButtonText}>Rate</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.transactionDetailDivider} />
+
+          <View style={styles.classDetailSection}>
+            <Text style={styles.classDetailSectionTitle}>Hosted by</Text>
+            <View style={styles.classDetailPersonRow}>
+              <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.classDetailAvatar} resizeMode="cover" />
+              <Text style={styles.classDetailPersonNameFill}>{centre.detailName || centre.name}</Text>
+              <View style={styles.confirmedRating}>
+                <MaterialCommunityIcons name="star" size={16} color="#222222" />
+                <Text style={styles.confirmedRatingText}>{centre.rating.toFixed(2)}</Text>
+              </View>
+            </View>
+            <View style={styles.classDetailPersonRow}>
+              <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.classDetailAvatar} resizeMode="cover" />
+              <View style={styles.classDetailPersonCopy}>
+                <Text style={styles.classDetailPersonName}>Athena Yeung</Text>
+                <Text style={styles.classDetailPersonRole}>Program Coach</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.transactionDetailDivider} />
+
+          <View style={styles.classDetailSection}>
+            <Text style={styles.classDetailSectionTitle}>Booking for</Text>
+            <View style={styles.classDetailPersonRow}>
+              <Image source={{ uri: transaction.childImage }} style={styles.classDetailAvatar} resizeMode="cover" />
+              <Text style={styles.classDetailPersonNameFill}>{transaction.child}</Text>
+            </View>
+          </View>
+
+          <View style={styles.transactionDetailDivider} />
+
+          <Text style={styles.classDetailFinePrint}>
+            <ZCareWord style={styles.reservationFineBrand} />{" "}helps protect your ClassZ booking by supporting class records, photos, coach feedback, and service-related issues under platform policy.{" "}
+            <Text style={styles.reservationLearnMore}>Learn More</Text>
+          </Text>
+
+          <View style={styles.transactionDetailDivider} />
+
+          <Text style={styles.classDetailFinePrint}>
+            You agreed to our <Text style={styles.reservationLink}>Cancellation Policy</Text>,{" "}
+            <Text style={styles.reservationLink}>Refund Policy</Text> and{" "}
+            <Text style={styles.reservationLink}>Terms and Conditions</Text>. Confirmed bookings are non-refundable, including sickness or absence. Direct centre arrangements may not be covered by <ZCareWord /> or ClassZ Passport.
+          </Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      <View style={styles.classDetailBottomNav}>
+        {(["Home", "Search", "Calendar", "Analytics"] as const).map((screen) => (
+          <Pressable key={screen} style={styles.favouriteBottomNavItem} onPress={() => navigation.navigate("AppTabs", { screen })}>
+            <Image
+              source={NAV_ICONS[screen]}
+              style={[styles.realTabIcon, { tintColor: screen === "Analytics" ? "#0ABAB5" : "#8A8A8A" }]}
+            />
+          </Pressable>
+        ))}
+        <Pressable style={styles.favouriteBottomNavItem} onPress={() => navigation.navigate("AppTabs", { screen: "Profile" })}>
+          <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.profileTabAvatar} resizeMode="cover" />
+        </Pressable>
+      </View>
+    </SafeAreaView>
+  )
+}
+
 function ScheduleClassDetailScreen({
   navigation,
   route,
@@ -1894,7 +2301,7 @@ function ScheduleClassDetailScreen({
         <View style={styles.reservationDivider} />
 
         <Text style={styles.classDetailFinePrint}>
-          <Text style={styles.reservationFineBrand}>zcare</Text>
+          <ZCareWord style={styles.reservationFineBrand} />
           {" "}helps protect your ClassZ booking by supporting class records, photos, coach feedback, and service-related issues under platform policy.{" "}
           <Text style={styles.reservationLearnMore}>Learn More</Text>
         </Text>
@@ -1904,7 +2311,7 @@ function ScheduleClassDetailScreen({
         <Text style={styles.classDetailFinePrint}>
           You agreed to our <Text style={styles.reservationLink}>Cancellation Policy</Text>,{" "}
           <Text style={styles.reservationLink}>Refund Policy</Text> and{" "}
-          <Text style={styles.reservationLink}>Terms and Conditions</Text>. Confirmed bookings are non-refundable, including sickness or absence. Direct centre arrangements may not be covered by ZCare or ClassZ Passport.
+          <Text style={styles.reservationLink}>Terms and Conditions</Text>. Confirmed bookings are non-refundable, including sickness or absence. Direct centre arrangements may not be covered by <ZCareWord /> or ClassZ Passport.
         </Text>
       </ScrollView>
 
@@ -2029,7 +2436,7 @@ function VerificationCodeScreen({
         <View style={styles.reservationDivider} />
 
         <Text style={styles.classDetailFinePrint}>
-          <Text style={styles.reservationFineBrand}>zcare</Text>
+          <ZCareWord style={styles.reservationFineBrand} />
           {" "}helps protect your ClassZ booking by supporting class records, photos, coach feedback, and service-related issues under platform policy.{" "}
           <Text style={styles.reservationLearnMore}>Learn More</Text>
         </Text>
@@ -2997,7 +3404,7 @@ function ReservationAppScreen({
             <Text style={styles.reservationSpotsText}>{schedule.spotsLeft} spots left</Text>
           </View>
           <Text style={styles.reservationProtectText}>
-            Your booking is protected by <Text style={styles.reservationProtectName}>zcare</Text>
+            Your booking is protected by <ZCareWord style={styles.reservationProtectName} />
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -3050,14 +3457,14 @@ function ReservationAppScreen({
         </View>
 
         <Text style={styles.reservationFinePrint}>
-          <Text style={styles.reservationFineBrand}>zcare</Text>
+          <ZCareWord style={styles.reservationFineBrand} />
           {" "}helps protect your ClassZ booking by supporting class records, photos, coach feedback, and service-related issues under platform policy.{" "}
           <Text style={styles.reservationLearnMore}>Learn More</Text>
         </Text>
         <Text style={styles.reservationFinePrint}>
           By paying, you agree to our <Text style={styles.reservationLink}>Cancellation Policy</Text>,{" "}
           <Text style={styles.reservationLink}>Refund Policy</Text>, and{" "}
-          <Text style={styles.reservationLink}>Terms and Conditions</Text>. Confirmed bookings are non-refundable, including sickness or absence. Direct centre arrangements may not be covered by ZCare or ClassZ Passport.
+          <Text style={styles.reservationLink}>Terms and Conditions</Text>. Confirmed bookings are non-refundable, including sickness or absence. Direct centre arrangements may not be covered by <ZCareWord /> or ClassZ Passport.
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -4752,6 +5159,15 @@ export default function App() {
             <Stack.Screen name="FavouriteApp" options={{ headerShown: false }}>
               {(props) => <FavouriteScreen {...props} />}
             </Stack.Screen>
+            <Stack.Screen name="TransactionsApp" options={{ headerShown: false }}>
+              {(props) => <TransactionsScreen {...props} />}
+            </Stack.Screen>
+            <Stack.Screen name="TransactionDetailApp" options={{ headerShown: false }}>
+              {(props) => <TransactionDetailScreen {...props} flowAppState={flowAppState} />}
+            </Stack.Screen>
+            <Stack.Screen name="CompletedClassDetailApp" options={{ headerShown: false }}>
+              {(props) => <CompletedClassDetailScreen {...props} flowAppState={flowAppState} />}
+            </Stack.Screen>
             <Stack.Screen name="ScheduleClassDetailApp" options={{ headerShown: false }}>
               {(props) => <ScheduleClassDetailScreen {...props} flowAppState={flowAppState} />}
             </Stack.Screen>
@@ -5598,7 +6014,9 @@ const styles = StyleSheet.create({
   reservationTotalLabel: { fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
   reservationTotalValue: { fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
   reservationFinePrint: { fontSize: FONT.secondary, lineHeight: 19, color: "#6B6B6B" },
-  reservationFineBrand: { fontSize: FONT.bodyLg, fontWeight: "700", color: "#0ABAB5" },
+  reservationFineBrand: { fontSize: FONT.bodyLg, fontWeight: "700", color: "#222222" },
+  zCareWord: { fontWeight: "700", color: "#222222" },
+  zCareMark: { color: "#0ABAB5" },
   reservationLearnMore: { fontSize: FONT.secondary, color: "#222222", textDecorationLine: "underline" },
   reservationLink: { color: "#2F6BFF", textDecorationLine: "underline" },
   scheduleScreen: { flex: 1, backgroundColor: "#FFFFFF" },
@@ -5727,6 +6145,139 @@ const styles = StyleSheet.create({
   scheduleCardChildAvatar: { width: 21, height: 21, borderRadius: 11, backgroundColor: "#E5E7EB" },
   scheduleCardChildName: { fontSize: FONT.micro, color: "#444444" },
   scheduleCardCentre: { fontSize: FONT.micro, lineHeight: 13, color: "#8A8A8A" },
+  transactionsContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 32,
+    gap: 16,
+  },
+  transactionCard: {
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingTop: 13,
+    paddingBottom: 14,
+    gap: 10,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.09,
+    shadowOffset: { width: 0, height: 5 },
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  transactionCardPressed: { opacity: 0.72 },
+  transactionTitleRow: { minHeight: 20, flexDirection: "row", alignItems: "center", gap: 10 },
+  transactionTitle: { flex: 1, fontSize: FONT.bodyLg, fontWeight: "700", color: "#222222" },
+  transactionCompleted: { fontSize: FONT.caption, fontWeight: "600", color: "#0ABAB5" },
+  transactionMainRow: { flexDirection: "row", alignItems: "stretch", gap: 12 },
+  transactionImage: { width: 98, minHeight: 112, borderRadius: 10, backgroundColor: "#E5E7EB" },
+  transactionCopy: { flex: 1, justifyContent: "space-between", gap: 5 },
+  transactionSchedule: { fontSize: FONT.caption, fontWeight: "600", color: "#333333" },
+  transactionChildRow: { flexDirection: "row", alignItems: "center", gap: 7 },
+  transactionChildImage: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#E5E7EB" },
+  transactionChildName: { fontSize: FONT.micro, color: "#333333" },
+  transactionCentreRow: { flexDirection: "row", alignItems: "flex-start", gap: 5 },
+  transactionCentre: { flex: 1, fontSize: FONT.micro, lineHeight: 13, color: "#7A7A7A" },
+  transactionTotal: { fontSize: FONT.bodyLg, fontWeight: "700", color: "#333333" },
+  transactionTotalLabel: { fontSize: FONT.body, fontWeight: "400", color: "#555555" },
+  transactionDetailContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 16,
+    paddingBottom: 34,
+    gap: 18,
+  },
+  transactionDetailProgramCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.09,
+    shadowOffset: { width: 0, height: 5 },
+    shadowRadius: 13,
+    elevation: 4,
+  },
+  transactionDetailProgramImage: { width: 104, height: 104, borderRadius: 10, backgroundColor: "#E5E7EB" },
+  transactionDetailProgramCopy: { flex: 1, gap: 9 },
+  transactionDetailProgramTitle: { fontSize: FONT.bodyLg, fontWeight: "500", color: "#222222" },
+  transactionDetailSection: { gap: 16 },
+  transactionDetailSectionTitle: { fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
+  transactionDetailPersonRow: { flexDirection: "row", alignItems: "center", gap: 13 },
+  transactionDetailAvatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: "#E5E7EB" },
+  transactionDetailPersonCopy: { flex: 1, gap: 3 },
+  transactionDetailPersonName: { fontSize: FONT.bodyLg, fontWeight: "600", color: "#222222" },
+  transactionDetailPersonNameFill: { flex: 1, fontSize: FONT.bodyLg, lineHeight: 19, fontWeight: "600", color: "#222222" },
+  transactionDetailPersonRole: { fontSize: FONT.body, color: "#777777" },
+  transactionDetailDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "#E2E2E2" },
+  transactionDetailCard: {
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 18,
+    gap: 13,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  transactionDetailDatesHeader: { gap: 9 },
+  transactionDetailScheduleTitle: { fontSize: FONT.bodyLg, fontWeight: "500", color: "#222222" },
+  transactionDetailDatesToggle: { alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: 5 },
+  transactionDetailDatesToggleText: { fontSize: FONT.micro, color: "#777777" },
+  transactionDetailLessonList: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#E2E2E2", paddingTop: 12, gap: 9 },
+  transactionDetailLessonHeading: { fontSize: FONT.body, fontWeight: "600", color: "#555555" },
+  transactionProtection: { fontSize: FONT.body, color: "#777777" },
+  transactionProtectionBrand: { fontSize: FONT.heading, fontWeight: "700", color: "#222222" },
+  transactionPaymentRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  transactionPaymentLabel: { fontSize: FONT.body, color: "#333333", textDecorationLine: "underline" },
+  transactionPaymentValue: { fontSize: FONT.body, color: "#333333" },
+  transactionPaymentDiscount: { fontSize: FONT.body, color: "#009B2A" },
+  transactionLoyalty: { fontSize: FONT.caption, fontWeight: "600", color: "#0ABAB5" },
+  transactionPaymentDivider: { height: StyleSheet.hairlineWidth, backgroundColor: "#D5D5D5", marginVertical: 2 },
+  transactionPaymentTotal: { fontSize: FONT.bodyLg, fontWeight: "700", color: "#333333" },
+  completedClassContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 34,
+    gap: 18,
+  },
+  completedRatingSection: { alignItems: "center", gap: 10, paddingHorizontal: 8 },
+  completedRatingTitle: { fontSize: FONT.body, fontWeight: "700", color: "#333333" },
+  completedRatingHint: { fontSize: FONT.caption, color: "#555555", textAlign: "center" },
+  completedStarsRow: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-around", paddingVertical: 4 },
+  completedReviewInput: {
+    width: "100%",
+    minHeight: 108,
+    borderWidth: 1,
+    borderColor: "#BEBEBE",
+    borderRadius: 9,
+    paddingHorizontal: 13,
+    paddingTop: 13,
+    paddingBottom: 13,
+    fontSize: FONT.body,
+    color: "#222222",
+    backgroundColor: "#FFFFFF",
+  },
+  completedRateButton: {
+    width: "100%",
+    minHeight: 46,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#2A2A2A",
+  },
+  completedRateButtonText: { fontSize: FONT.body, fontWeight: "600", color: "#FFFFFF" },
   classDetailContent: {
     width: "100%",
     maxWidth: 520,
