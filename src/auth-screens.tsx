@@ -1,3 +1,4 @@
+import { FONT } from "./typography"
 import { useMemo, useState } from "react"
 import {
   ActivityIndicator,
@@ -403,7 +404,6 @@ export function RegisterFormScreen({
           source={REGISTER_HEADER_BG}
           style={styles.registerFormHeaderBg}
           resizeMode="cover"
-          pointerEvents="none"
         />
         <View style={styles.registerFormNav}>
           <AuthBackButton onPress={() => navigation.goBack()} />
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0ABAB5",
   },
   roleToggleItemActive: { backgroundColor: "#FFFFFF" },
-  roleToggleText: { fontSize: 12, fontWeight: "500", color: "#FFFFFF" },
+  roleToggleText: { fontSize: FONT.caption, fontWeight: "500", color: "#FFFFFF" },
   roleToggleTextActive: { color: "#0ABAB5" },
   landingButtons: { gap: 12 },
   primaryBtn: {
@@ -572,7 +572,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: "100%",
   },
-  primaryBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "500" },
+  primaryBtnText: { color: "#FFFFFF", fontSize: FONT.headline, fontWeight: "500" },
   secondaryBtn: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
@@ -583,15 +583,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#D7F4F3",
   },
-  secondaryBtnText: { color: "#0ABAB5", fontSize: 16, fontWeight: "500" },
+  secondaryBtnText: { color: "#0ABAB5", fontSize: FONT.headline, fontWeight: "500" },
   btnDisabled: { opacity: 0.55 },
   loginTopBar: { paddingHorizontal: 24, paddingTop: 8 },
   loginScroll: { flexGrow: 1, paddingBottom: 24 },
   loginLogoWrap: { flex: 1, minHeight: 140, alignItems: "center", justifyContent: "center" },
   loginFormBlock: { paddingHorizontal: 24, gap: 24, alignItems: "center" },
-  loginTitle: { fontSize: 16, fontWeight: "500", color: "#525252", textAlign: "center" },
+  loginTitle: { fontSize: FONT.headline, fontWeight: "500", color: "#525252", textAlign: "center" },
   fieldWrap: { width: "100%", gap: 4 },
-  fieldLabel: { fontSize: 14, color: "#292929" },
+  fieldLabel: { fontSize: FONT.body, color: "#292929" },
   fieldRequired: { color: "#E16E65" },
   fieldInputWrap: {
     width: "100%",
@@ -605,7 +605,7 @@ const styles = StyleSheet.create({
   },
   fieldInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: FONT.body,
     color: "#292929",
     paddingVertical: 16,
     paddingHorizontal: 0,
@@ -614,9 +614,9 @@ const styles = StyleSheet.create({
   },
   fieldEyeBtn: { paddingLeft: 12, justifyContent: "center" },
   forgotRow: { width: "100%", alignItems: "flex-end", paddingHorizontal: 4 },
-  forgotText: { fontSize: 12, color: "#A3A3A3" },
-  errorText: { color: "#E16E65", fontSize: 13, alignSelf: "stretch" },
-  switchAuthText: { fontSize: 12, color: "#A3A3A3", textAlign: "center" },
+  forgotText: { fontSize: FONT.caption, color: "#A3A3A3" },
+  errorText: { color: "#E16E65", fontSize: FONT.secondary, alignSelf: "stretch" },
+  switchAuthText: { fontSize: FONT.caption, color: "#A3A3A3", textAlign: "center" },
   switchAuthLink: { color: "#0ABAB5", fontWeight: "600" },
   hintBox: {
     alignSelf: "stretch",
@@ -627,9 +627,9 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 4,
   },
-  hintTitle: { fontSize: 12, fontWeight: "700", color: "#0ABAB5" },
-  hintLine: { fontSize: 12, color: "#525252" },
-  hintPwd: { fontSize: 12, color: "#7A7A7A", marginTop: 2 },
+  hintTitle: { fontSize: FONT.caption, fontWeight: "700", color: "#0ABAB5" },
+  hintLine: { fontSize: FONT.caption, color: "#525252" },
+  hintPwd: { fontSize: FONT.caption, color: "#7A7A7A", marginTop: 2 },
   registerTypeScreen: { flex: 1, backgroundColor: "#D7F4F3" },
   registerTypeTop: {
     paddingHorizontal: 24,
@@ -659,8 +659,8 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   registerTypeHeader: { gap: 2 },
-  registerWelcome: { fontSize: 16, fontWeight: "500", color: "#292929" },
-  registerWelcomeSub: { fontSize: 12, color: "#A3A3A3" },
+  registerWelcome: { fontSize: FONT.headline, fontWeight: "500", color: "#292929" },
+  registerWelcomeSub: { fontSize: FONT.caption, color: "#A3A3A3" },
   registerTypeList: { gap: 12 },
   registerTypeCard: {
     borderWidth: 1,
@@ -673,8 +673,8 @@ const styles = StyleSheet.create({
   },
   registerTypeCardActive: { borderWidth: 2 },
   registerTypeCopy: { flex: 1, gap: 4 },
-  registerTypeTitle: { fontSize: 14, fontWeight: "500", color: "#292929" },
-  registerTypeDesc: { fontSize: 12, color: "#7A7A7A", lineHeight: 18 },
+  registerTypeTitle: { fontSize: FONT.body, fontWeight: "500", color: "#292929" },
+  registerTypeDesc: { fontSize: FONT.caption, color: "#7A7A7A", lineHeight: 18 },
   registerCheckBox: {
     width: 28,
     height: 28,
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
   registerFormNavSpacer: { width: 40, height: 40 },
   registerFormTitleWrap: { alignItems: "center", justifyContent: "center", gap: 4 },
   registerFormTitle: { fontSize: 18, fontWeight: "600", color: "#292929", lineHeight: 22 },
-  registerFormRole: { fontSize: 12, color: "#A3A3A3", lineHeight: 18, textAlign: "center" },
+  registerFormRole: { fontSize: FONT.caption, color: "#A3A3A3", lineHeight: 18, textAlign: "center" },
   registerFormSheet: {
     flex: 1,
     backgroundColor: "#FFFFFF",
@@ -744,7 +744,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   ruleOkBoxIdle: { backgroundColor: "#F5F5F5" },
-  ruleOkText: { flex: 1, fontSize: 12, color: "#0ABAB5", lineHeight: 18 },
+  ruleOkText: { flex: 1, fontSize: FONT.caption, color: "#0ABAB5", lineHeight: 18 },
   ruleMuted: { color: "#7A7A7A" },
   ruleDot: {
     width: 16,
@@ -773,7 +773,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  ruleErrorText: { flex: 1, fontSize: 12, color: "#E16E65", lineHeight: 18 },
+  ruleErrorText: { flex: 1, fontSize: FONT.caption, color: "#E16E65", lineHeight: 18 },
   termsRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   termsCheck: {
     width: 16,
@@ -786,7 +786,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   termsCheckActive: { backgroundColor: "#0ABAB5", borderColor: "#0ABAB5" },
-  termsText: { flex: 1, fontSize: 10, color: "#7A7A7A", lineHeight: 15 },
+  termsText: { flex: 1, fontSize: FONT.micro, color: "#7A7A7A", lineHeight: 15 },
   termsLink: { color: "#0ABAB5" },
   registerFormFooter: { padding: 24, backgroundColor: "#FFFFFF" },
   nextBtn: {
@@ -797,7 +797,7 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   nextBtnDisabled: { backgroundColor: "#D7F4F3" },
-  nextBtnText: { fontSize: 16, fontWeight: "500" },
+  nextBtnText: { fontSize: FONT.headline, fontWeight: "500" },
   nextBtnTextDisabled: { color: "#0ABAB5" },
   forgotWrap: { flex: 1, padding: 24, gap: 16, justifyContent: "center" },
 })
