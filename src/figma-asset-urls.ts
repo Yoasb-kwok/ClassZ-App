@@ -1,6 +1,6 @@
-import { Image } from "react-native"
+import { Asset } from "expo-asset"
 
-const toUri = (asset: number): string => Image.resolveAssetSource(asset).uri
+const toUri = (asset: number | string): string => Asset.fromModule(asset).uri
 
 export const FIGMA_ASSETS = {
   login: {

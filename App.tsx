@@ -327,7 +327,17 @@ function SearchTabScreen({
   locale: AppLocale
 }) {
   const t = tSearch(locale)
+  const [favouriteProgramIds, setFavouriteProgramIds] = useState<string[]>([])
   const categories = ["STEM", "Sports", "Academic", "Art", "Music", "Others"] as const
+  const categoryTabs = ["Music", "Art", "STEM", "Academic", "Sports", "Others"] as const
+  const categoryIcons = {
+    STEM: "vector-polyline",
+    Sports: "basketball",
+    Academic: "book-open-page-variant",
+    Art: "palette",
+    Music: "music-note-eighth",
+    Others: "dots-horizontal-circle-outline",
+  } as const
   const categoryLabel = (category: (typeof categories)[number]) => {
     if (category === "STEM") return t.stem
     if (category === "Sports") return t.sports
@@ -335,6 +345,27 @@ function SearchTabScreen({
     if (category === "Art") return t.art
     if (category === "Music") return t.music
     return t.others
+  }
+
+  const selectedCategory = flowAppState.selectedCategory as (typeof categories)[number] | null
+  const normalizedQuery = flowAppState.searchQuery.trim().toLowerCase()
+  const filteredPrograms = flowAppState.programs.filter((program) => {
+    const matchesCategory = !selectedCategory || program.category.toLowerCase() === selectedCategory.toLowerCase()
+    const matchesQuery = !normalizedQuery
+      || `${program.title} ${program.category} ${program.location}`.toLowerCase().includes(normalizedQuery)
+    return matchesCategory && matchesQuery
+  })
+
+  const selectCategory = (category: (typeof categories)[number]) => {
+    setFlowAppState((prev) => ({ ...prev, selectedCategory: category }))
+  }
+
+  const toggleFavourite = (programId: string) => {
+    setFavouriteProgramIds((current) =>
+      current.includes(programId)
+        ? current.filter((id) => id !== programId)
+        : [...current, programId],
+    )
   }
 
   return (
@@ -352,51 +383,135 @@ function SearchTabScreen({
           />
         </View>
 
-        <View style={styles.searchCategoryGrid}>
-          {categories.map((category) => (
+        {selectedCategory ? (
+          <>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.searchCategoryTabsScroll}
+              contentContainerStyle={styles.searchCategoryTabs}
+            >
+              {categoryTabs.map((category) => {
+                const active = selectedCategory === category
+                return (
+                  <Pressable
+                    key={category}
+                    style={[styles.searchCategoryTab, active ? styles.searchCategoryTabActive : null]}
+                    onPress={() => selectCategory(category)}
+                  >
+                    <MaterialCommunityIcons
+                      name={categoryIcons[category]}
+                      size={23}
+                      color={active ? "#222222" : "#B9B9B9"}
+                    />
+                    <Text style={[styles.searchCategoryTabText, active ? styles.searchCategoryTabTextActive : null]}>
+                      {categoryLabel(category)}
+                    </Text>
+                  </Pressable>
+                )
+              })}
+            </ScrollView>
+
+            <Pressable style={styles.searchFilterButton}>
+              <Text style={styles.searchFilterText}>Filter</Text>
+            </Pressable>
+
+            <View style={styles.searchResultsList}>
+              {filteredPrograms.map((program, index) => {
+                const favourite = favouriteProgramIds.includes(program.id)
+                return (
+                  <Pressable
+                    key={program.id}
+                    style={styles.searchResultCard}
+                    onPress={() => {
+                      setFlowAppState((prev) => ({ ...prev, selectedProgramId: program.id }))
+                      navigation.navigate("ReservationApp")
+                    }}
+                  >
+                    <View style={styles.searchResultImageWrap}>
+                      <Image
+                        source={HOME_RECOMMEND_IMAGES[index % HOME_RECOMMEND_IMAGES.length]}
+                        style={styles.searchResultImage}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.searchResultSenBadge}>
+                        <Feather name="check-circle" size={12} color="#222222" />
+                        <Text style={styles.searchResultSenText}>SEN</Text>
+                      </View>
+                      <Pressable
+                        accessibilityLabel={favourite ? "Remove from favourites" : "Add to favourites"}
+                        hitSlop={10}
+                        style={styles.searchResultHeart}
+                        onPress={(event) => {
+                          event.stopPropagation()
+                          toggleFavourite(program.id)
+                        }}
+                      >
+                        <Feather name="heart" size={25} color="#FFFFFF" fill={favourite ? "#E22255" : "transparent"} />
+                      </Pressable>
+                    </View>
+                    <View style={styles.searchResultBody}>
+                      <View style={styles.searchResultTitleRow}>
+                        <Text style={styles.searchResultTitle} numberOfLines={1}>{program.title}</Text>
+                        <View style={styles.ratingRow}>
+                          <Feather name="star" size={14} color="#222222" fill="#222222" />
+                          <Text style={styles.searchResultRating}>{program.rating.toFixed(2)}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.searchResultMeta}>${program.price} {tMain(locale).lesson} · {program.location}</Text>
+                    </View>
+                  </Pressable>
+                )
+              })}
+              {!filteredPrograms.length ? (
+                <View style={styles.searchEmptyState}>
+                  <Feather name="search" size={28} color="#A3A3A3" />
+                  <Text style={styles.searchEmptyTitle}>No classes found</Text>
+                  <Text style={styles.searchEmptyText}>Try another category or search word.</Text>
+                </View>
+              ) : null}
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.searchCategoryGrid}>
+              {categories.map((category) => (
+                <Pressable
+                  key={category}
+                  style={[styles.searchCategoryCard, { backgroundColor: SEARCH_CATEGORY_COLORS[category] }]}
+                  onPress={() => selectCategory(category)}
+                >
+                  <Image source={SEARCH_CATEGORY_IMAGES[category]} style={styles.searchCategoryImage} resizeMode="cover" />
+                  <Text style={styles.searchCategoryText}>{categoryLabel(category)}</Text>
+                </Pressable>
+              ))}
+            </View>
+
             <Pressable
-              key={category}
-              style={[
-                styles.searchCategoryCard,
-                { backgroundColor: SEARCH_CATEGORY_COLORS[category] },
-                flowAppState.selectedCategory === category ? styles.searchCategoryCardActive : null,
-              ]}
+              style={styles.searchBannerBtn}
               onPress={() =>
                 setFlowAppState((prev) => ({
                   ...prev,
-                  selectedCategory: prev.selectedCategory === category ? null : category,
+                  selectedCategory: null,
+                  searchQuery: locale === "en" ? "high school" : "中學",
                 }))
               }
             >
-              <Image source={SEARCH_CATEGORY_IMAGES[category]} style={styles.searchCategoryImage} resizeMode="cover" />
-              <Text style={styles.searchCategoryText}>{categoryLabel(category)}</Text>
+              <Image source={SEARCH_BANNER_CENTRE} style={styles.searchBannerImage} resizeMode="cover" />
+              <View style={styles.searchBannerOverlay} />
+              <Text style={styles.searchBannerText}>{t.centreCourses}</Text>
             </Pressable>
-          ))}
-        </View>
 
-        <Pressable
-          style={styles.searchBannerBtn}
-          onPress={() =>
-            setFlowAppState((prev) => ({
-              ...prev,
-              selectedCategory: null,
-              searchQuery: locale === "en" ? "high school" : "中學",
-            }))
-          }
-        >
-          <Image source={SEARCH_BANNER_CENTRE} style={styles.searchBannerImage} resizeMode="cover" />
-          <View style={styles.searchBannerOverlay} />
-          <Text style={styles.searchBannerText}>{t.centreCourses}</Text>
-        </Pressable>
-
-        <Pressable
-          style={styles.searchBannerBtn}
-          onPress={() => navigation.navigate("ReservationApp")}
-        >
-          <Image source={SEARCH_BANNER_PARENT} style={styles.searchBannerImage} resizeMode="cover" />
-          <View style={[styles.searchBannerOverlay, styles.searchBannerOverlayTeal]} />
-          <Text style={styles.searchBannerText}>{t.parentWorkshop}</Text>
-        </Pressable>
+            <Pressable
+              style={styles.searchBannerBtn}
+              onPress={() => navigation.navigate("ReservationApp")}
+            >
+              <Image source={SEARCH_BANNER_PARENT} style={styles.searchBannerImage} resizeMode="cover" />
+              <View style={[styles.searchBannerOverlay, styles.searchBannerOverlayTeal]} />
+              <Text style={styles.searchBannerText}>{t.parentWorkshop}</Text>
+            </Pressable>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   )
@@ -1741,7 +1856,14 @@ function AppTabs({
           />
         )}
       </Tab.Screen>
-      <Tab.Screen name="Search">
+      <Tab.Screen
+        name="Search"
+        listeners={{
+          tabPress: () => {
+            setFlowAppState((prev) => ({ ...prev, selectedCategory: null, searchQuery: "" }))
+          },
+        }}
+      >
         {(props) => (
           <SearchTabScreen
             {...props}
@@ -1805,9 +1927,9 @@ export default function App() {
 
   if (booting) {
     return (
-      <SafeAreaView style={[styles.screen, styles.center]}>
+      <View style={[styles.screen, styles.center]}>
         <ActivityIndicator />
-      </SafeAreaView>
+      </View>
     )
   }
 
@@ -2338,6 +2460,66 @@ const styles = StyleSheet.create({
     opacity: 0.95,
   },
   searchCategoryText: { fontSize: 16, fontWeight: "600", color: "#FFFFFF", zIndex: 2 },
+  searchCategoryTabsScroll: { marginHorizontal: -24, borderBottomWidth: 1, borderBottomColor: "#ECECEC" },
+  searchCategoryTabs: { paddingHorizontal: 14, alignItems: "stretch" },
+  searchCategoryTab: {
+    width: 64,
+    minHeight: 62,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  searchCategoryTabActive: { borderBottomColor: "#222222" },
+  searchCategoryTabText: { fontSize: 10, fontWeight: "500", color: "#B9B9B9" },
+  searchCategoryTabTextActive: { color: "#222222" },
+  searchFilterButton: { alignSelf: "flex-start", paddingVertical: 1 },
+  searchFilterText: { fontSize: 14, color: "#343434", textDecorationLine: "underline" },
+  searchResultsList: { gap: 18 },
+  searchResultCard: {
+    width: "100%",
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+    shadowColor: "#000000",
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 5 },
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  searchResultImageWrap: { width: "100%", height: 150, position: "relative", backgroundColor: "#F3F4F6" },
+  searchResultImage: { width: "100%", height: "100%" },
+  searchResultSenBadge: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+  },
+  searchResultSenText: { fontSize: 12, fontWeight: "600", color: "#222222" },
+  searchResultHeart: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchResultBody: { paddingHorizontal: 14, paddingVertical: 13, gap: 8 },
+  searchResultTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  searchResultTitle: { flex: 1, fontSize: 14, fontWeight: "700", color: "#222222" },
+  searchResultRating: { fontSize: 13, color: "#343434" },
+  searchResultMeta: { fontSize: 13, color: "#5E5E5E" },
+  searchEmptyState: { alignItems: "center", paddingVertical: 42, gap: 7 },
+  searchEmptyTitle: { fontSize: 16, fontWeight: "700", color: "#343434" },
+  searchEmptyText: { fontSize: 13, color: "#777777", textAlign: "center" },
   searchBannerBtn: {
     width: "100%",
     height: 150,
