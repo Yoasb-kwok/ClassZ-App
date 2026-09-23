@@ -19,6 +19,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -71,6 +72,7 @@ type RootStackParamList = {
   RegisterForm: { accountType: "parent" | "coach" | "centre" }
   ForgotPassword: { role: AuthRole }
   AppTabs: undefined
+  CentreDetailApp: undefined
   ReservationApp: undefined
   LearningRecordsApp: undefined
   CompanionApp: undefined
@@ -150,6 +152,21 @@ const DEFAULT_SEARCH_FILTERS: SearchFilterState = {
   ratings: [4, 5],
   services: ["SEN-inclusive", "Exam / Certificate Pathway"],
 }
+
+const APP_TAB_BAR_STYLE = {
+  borderTopWidth: 1,
+  borderTopColor: "#E5E7EB",
+  height: 78,
+  paddingTop: 8,
+  paddingBottom: 10,
+  paddingHorizontal: 12,
+  backgroundColor: "#FFFFFF",
+  shadowColor: "#809BCE",
+  shadowOpacity: 0.12,
+  shadowOffset: { width: 0, height: -2 },
+  shadowRadius: 10,
+  elevation: 12,
+} as const
 
 const API_BASE = (() => {
   const raw = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3003"
@@ -382,7 +399,7 @@ function SearchTabScreen({
   locale: AppLocale
 }) {
   const t = tSearch(locale)
-  const [favouriteProgramIds, setFavouriteProgramIds] = useState<string[]>([])
+  const [favouriteCentreIds, setFavouriteCentreIds] = useState<string[]>([])
   const [showFilters, setShowFilters] = useState(false)
   const [draftFilters, setDraftFilters] = useState<SearchFilterState>(DEFAULT_SEARCH_FILTERS)
   const [appliedFilters, setAppliedFilters] = useState<SearchFilterState | null>(null)
@@ -408,33 +425,33 @@ function SearchTabScreen({
 
   const selectedCategory = flowAppState.selectedCategory as (typeof categories)[number] | null
   const normalizedQuery = flowAppState.searchQuery.trim().toLowerCase()
-  const filteredPrograms = flowAppState.programs.filter((program) => {
-    const matchesCategory = !selectedCategory || program.category.toLowerCase() === selectedCategory.toLowerCase()
+  const filteredCentres = flowAppState.centres.filter((centre) => {
+    const matchesCategory = !selectedCategory || centre.categories.includes(selectedCategory)
     const matchesQuery = !normalizedQuery
-      || `${program.title} ${program.category} ${program.location}`.toLowerCase().includes(normalizedQuery)
+      || `${centre.name} ${centre.categories.join(" ")} ${centre.location}`.toLowerCase().includes(normalizedQuery)
     const minimumPrice = Number(appliedFilters?.minPrice || 0)
     const maximumPrice = Number(appliedFilters?.maxPrice || Number.POSITIVE_INFINITY)
-    const matchesDistrict = !appliedFilters?.districts.length || appliedFilters.districts.includes(program.location)
-    const matchesPrice = !appliedFilters || (program.price >= minimumPrice && program.price <= maximumPrice)
+    const matchesDistrict = !appliedFilters?.districts.length || appliedFilters.districts.includes(centre.location)
+    const matchesPrice = !appliedFilters || (centre.priceFrom >= minimumPrice && centre.priceFrom <= maximumPrice)
     const matchesRating = !appliedFilters?.ratings.length
-      || appliedFilters.ratings.includes(Math.round(program.rating))
+      || appliedFilters.ratings.includes(Math.round(centre.rating))
     return matchesCategory && matchesQuery && matchesDistrict && matchesPrice && matchesRating
   })
 
   useEffect(() => {
-    navigation.setOptions({ tabBarStyle: showFilters ? { display: "none" } : undefined })
-    return () => navigation.setOptions({ tabBarStyle: undefined })
+    navigation.setOptions({ tabBarStyle: showFilters ? { display: "none" } : APP_TAB_BAR_STYLE })
+    return () => navigation.setOptions({ tabBarStyle: APP_TAB_BAR_STYLE })
   }, [navigation, showFilters])
 
   const selectCategory = (category: (typeof categories)[number]) => {
     setFlowAppState((prev) => ({ ...prev, selectedCategory: category }))
   }
 
-  const toggleFavourite = (programId: string) => {
-    setFavouriteProgramIds((current) =>
-      current.includes(programId)
-        ? current.filter((id) => id !== programId)
-        : [...current, programId],
+  const toggleFavourite = (centreId: string) => {
+    setFavouriteCentreIds((current) =>
+      current.includes(centreId)
+        ? current.filter((id) => id !== centreId)
+        : [...current, centreId],
     )
   }
 
@@ -655,34 +672,36 @@ function SearchTabScreen({
             </Pressable>
 
             <View style={styles.searchResultsList}>
-              {filteredPrograms.map((program, index) => {
-                const favourite = favouriteProgramIds.includes(program.id)
+              {filteredCentres.map((centre) => {
+                const favourite = favouriteCentreIds.includes(centre.id)
                 return (
                   <Pressable
-                    key={program.id}
+                    key={centre.id}
                     style={styles.searchResultCard}
                     onPress={() => {
-                      setFlowAppState((prev) => ({ ...prev, selectedProgramId: program.id }))
-                      navigation.navigate("ReservationApp")
+                      setFlowAppState((prev) => ({ ...prev, selectedCentreId: centre.id }))
+                      navigation.navigate("CentreDetailApp")
                     }}
                   >
                     <View style={styles.searchResultImageWrap}>
                       <Image
-                        source={HOME_RECOMMEND_IMAGES[index % HOME_RECOMMEND_IMAGES.length]}
+                        source={HOME_RECOMMEND_IMAGES[centre.imageIndex % HOME_RECOMMEND_IMAGES.length]}
                         style={styles.searchResultImage}
                         resizeMode="cover"
                       />
-                      <View style={styles.searchResultSenBadge}>
-                        <Feather name="check-circle" size={12} color="#222222" />
-                        <Text style={styles.searchResultSenText}>SEN</Text>
-                      </View>
+                      {centre.supportsSen ? (
+                        <View style={styles.searchResultSenBadge}>
+                          <Feather name="check-circle" size={12} color="#222222" />
+                          <Text style={styles.searchResultSenText}>SEN</Text>
+                        </View>
+                      ) : null}
                       <Pressable
                         accessibilityLabel={favourite ? "Remove from favourites" : "Add to favourites"}
                         hitSlop={10}
                         style={styles.searchResultHeart}
                         onPress={(event) => {
                           event.stopPropagation()
-                          toggleFavourite(program.id)
+                          toggleFavourite(centre.id)
                         }}
                       >
                         <Feather name="heart" size={25} color="#FFFFFF" fill={favourite ? "#E22255" : "transparent"} />
@@ -690,22 +709,22 @@ function SearchTabScreen({
                     </View>
                     <View style={styles.searchResultBody}>
                       <View style={styles.searchResultTitleRow}>
-                        <Text style={styles.searchResultTitle} numberOfLines={1}>{program.title}</Text>
+                        <Text style={styles.searchResultTitle} numberOfLines={1}>{centre.name}</Text>
                         <View style={styles.ratingRow}>
                           <MaterialCommunityIcons name="star" size={15} color="#222222" />
-                          <Text style={styles.searchResultRating}>{program.rating.toFixed(2)}</Text>
+                          <Text style={styles.searchResultRating}>{centre.rating.toFixed(2)}</Text>
                         </View>
                       </View>
-                      <Text style={styles.searchResultMeta}>${program.price} {tMain(locale).lesson} · {program.location}</Text>
+                      <Text style={styles.searchResultMeta}>${centre.priceFrom} {tMain(locale).lesson} · {centre.location}</Text>
                     </View>
                   </Pressable>
                 )
               })}
-              {!filteredPrograms.length ? (
+              {!filteredCentres.length ? (
                 <View style={styles.searchEmptyState}>
                   <Feather name="search" size={28} color="#A3A3A3" />
-                  <Text style={styles.searchEmptyTitle}>No classes found</Text>
-                  <Text style={styles.searchEmptyText}>Try another category or search word.</Text>
+                  <Text style={styles.searchEmptyTitle}>No centres found</Text>
+                  <Text style={styles.searchEmptyText}>Try another category, location, or search word.</Text>
                 </View>
               ) : null}
             </View>
@@ -751,6 +770,188 @@ function SearchTabScreen({
           </>
         )}
       </ScrollView>
+    </SafeAreaView>
+  )
+}
+
+function CentreDetailScreen({
+  navigation,
+  flowAppState,
+  setFlowAppState,
+}: {
+  navigation: any
+  flowAppState: FlowAppState
+  setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
+}) {
+  const scrollRef = useRef<ScrollView>(null)
+  const [favourite, setFavourite] = useState(false)
+  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId)
+    || flowAppState.centres[0]
+  const category = centre.categories[0] as keyof typeof SEARCH_CATEGORY_IMAGES
+  const suggestedCentres = flowAppState.centres.filter((item) => item.id !== centre.id).slice(0, 3)
+  const relatedProgram = flowAppState.programs.find((program) => centre.categories.includes(program.category))
+  const services = [
+    { icon: "shield-check-outline", title: "SEN-inclusive", description: "SEN-friendly facilities and teaching for children with different learning needs." },
+    { icon: "account-group-outline", title: "Small Class Size", description: "Smaller class groups for more focused attention and interaction." },
+    { icon: "medal-outline", title: "Exam / Certificate Pathway", description: "Supports recognised exams, graded levels, or certificate preparation." },
+    { icon: "human-male-board", title: "Performance Opportunity", description: "Offers chances to perform, showcase, compete, or present work." },
+  ] as const
+
+  return (
+    <SafeAreaView style={styles.centreDetailScreen} edges={["top", "bottom"]}>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.page}
+        contentContainerStyle={styles.centreDetailScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.centreDetailHeroWrap}>
+          <Image
+            source={HOME_RECOMMEND_IMAGES[centre.imageIndex % HOME_RECOMMEND_IMAGES.length]}
+            style={styles.centreDetailHero}
+            resizeMode="cover"
+          />
+          <Pressable
+            accessibilityLabel="Back"
+            style={[styles.centreDetailRoundButton, styles.centreDetailBackButton]}
+            onPress={() => navigation.goBack()}
+          >
+            <Feather name="arrow-left" size={18} color="#222222" />
+          </Pressable>
+          <View style={styles.centreDetailHeroActions}>
+            <Pressable
+              accessibilityLabel="Share centre"
+              style={styles.centreDetailRoundButton}
+              onPress={() => Share.share({ message: `${centre.detailName || centre.name} - ${centre.address}` })}
+            >
+              <Feather name="share-2" size={15} color="#222222" />
+            </Pressable>
+            <Pressable accessibilityLabel="Message centre" style={styles.centreDetailRoundButton} onPress={() => navigation.navigate("InboxApp")}>
+              <Feather name="message-circle" size={15} color="#222222" />
+            </Pressable>
+            <Pressable accessibilityLabel="Favourite centre" style={styles.centreDetailRoundButton} onPress={() => setFavourite((value) => !value)}>
+              <MaterialCommunityIcons name={favourite ? "heart" : "heart-outline"} size={18} color={favourite ? "#E22255" : "#222222"} />
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.centreDetailContent}>
+          <View style={styles.centreDetailTitleRow}>
+            <View style={styles.centreDetailLogoWrap}>
+              <Image source={SEARCH_CATEGORY_IMAGES[category]} style={styles.centreDetailLogo} resizeMode="cover" />
+            </View>
+            <Text style={styles.centreDetailTitle}>{centre.detailName || centre.name}</Text>
+          </View>
+          <View style={styles.centreDetailRatingRow}>
+            <MaterialCommunityIcons name="star" size={15} color="#222222" />
+            <Text style={styles.centreDetailRating}>{centre.rating.toFixed(1)}</Text>
+            <Text style={styles.centreDetailReviewLink}>· {centre.reviewCount} reviews</Text>
+          </View>
+          <View style={styles.centreDetailAddressRow}>
+            <Feather name="map-pin" size={14} color="#4B5563" />
+            <Text style={styles.centreDetailAddress}>{centre.address}</Text>
+          </View>
+
+          <Text style={styles.centreDetailDescription}>
+            Welcome to the Enrichment Hub! Our centre is designed to provide a stimulating and supportive environment where learners of all ages can engage in a wide range of captivating classes and pursue their unique interests.
+          </Text>
+
+          <View style={styles.centreDetailDivider} />
+          <Text style={styles.centreDetailSectionTitle}>Members</Text>
+          <View style={styles.centreDetailMembersRow}>
+            <View style={styles.centreDetailMember}>
+              <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.centreDetailMemberImage} />
+              <Text style={styles.centreDetailMemberName}>Jessica Lam</Text>
+              <Text style={styles.centreDetailMemberRole}>Centre Manager</Text>
+            </View>
+            <View style={styles.centreDetailMember}>
+              <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.centreDetailMemberImage} />
+              <Text style={styles.centreDetailMemberName}>Athena Yeung</Text>
+              <Text style={styles.centreDetailMemberRole}>Program Coach</Text>
+            </View>
+          </View>
+
+          <View style={styles.centreDetailDivider} />
+          <View style={styles.centreDetailServices}>
+            {services.map((service) => (
+              <View key={service.title} style={styles.centreDetailServiceRow}>
+                <MaterialCommunityIcons name={service.icon} size={24} color="#343434" />
+                <View style={styles.centreDetailServiceCopy}>
+                  <Text style={styles.centreDetailServiceTitle}>{service.title}</Text>
+                  <Text style={styles.centreDetailServiceDescription}>{service.description}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.centreDetailDivider} />
+          <View style={styles.centreDetailMap}>
+            <View style={[styles.centreDetailMapRoad, styles.centreDetailMapRoadHorizontal]} />
+            <View style={[styles.centreDetailMapRoad, styles.centreDetailMapRoadVertical]} />
+            <Text style={[styles.centreDetailMapLabel, { top: 18, left: 16 }]}>Central</Text>
+            <Text style={[styles.centreDetailMapLabel, { bottom: 18, right: 18 }]}>{centre.location}</Text>
+            <View style={styles.centreDetailMapPin}>
+              <MaterialCommunityIcons name="map-marker" size={26} color="#FFFFFF" />
+            </View>
+          </View>
+
+          <Text style={styles.centreDetailSectionTitle}>Suggested Centre</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.centreDetailSuggestions}>
+            {suggestedCentres.map((suggested) => (
+              <Pressable
+                key={suggested.id}
+                style={styles.centreDetailSuggestionCard}
+                onPress={() => {
+                  setFlowAppState((prev) => ({ ...prev, selectedCentreId: suggested.id }))
+                  scrollRef.current?.scrollTo({ y: 0, animated: true })
+                }}
+              >
+                <View style={styles.centreDetailSuggestionImageWrap}>
+                  <Image
+                    source={HOME_RECOMMEND_IMAGES[suggested.imageIndex % HOME_RECOMMEND_IMAGES.length]}
+                    style={styles.centreDetailSuggestionImage}
+                    resizeMode="cover"
+                  />
+                  {suggested.supportsSen ? (
+                    <View style={styles.centreDetailSuggestionBadge}>
+                      <Feather name="check-circle" size={10} color="#222222" />
+                      <Text style={styles.centreDetailSuggestionBadgeText}>SEN</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <View style={styles.centreDetailSuggestionBody}>
+                  <View style={styles.centreDetailSuggestionTitleRow}>
+                    <Text style={styles.centreDetailSuggestionTitle} numberOfLines={1}>{suggested.name}</Text>
+                    <View style={styles.ratingRow}>
+                      <MaterialCommunityIcons name="star" size={12} color="#222222" />
+                      <Text style={styles.centreDetailSuggestionRating}>{suggested.rating.toFixed(2)}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.centreDetailSuggestionMeta}>${suggested.priceFrom} course · {suggested.location}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      </ScrollView>
+
+      <View style={styles.centreDetailFooter}>
+        <View>
+          <Text style={styles.centreDetailFooterPrice}>From ${centre.priceFrom} class</Text>
+          <Text style={styles.centreDetailFooterAvailability}>12 programs available</Text>
+        </View>
+        <Pressable
+          style={styles.centreDetailProgramsButton}
+          disabled={!relatedProgram}
+          onPress={() => {
+            if (!relatedProgram) return
+            setFlowAppState((prev) => ({ ...prev, selectedProgramId: relatedProgram.id }))
+            navigation.navigate("ReservationApp")
+          }}
+        >
+          <Text style={styles.centreDetailProgramsButtonText}>Programs</Text>
+        </Pressable>
+      </View>
     </SafeAreaView>
   )
 }
@@ -2056,19 +2257,17 @@ function AppTabs({
         tabBarShowLabel: false,
         tabBarActiveTintColor: "#0ABAB5",
         tabBarInactiveTintColor: "#9CA3AF",
-        tabBarStyle: {
-          borderTopWidth: 1,
-          borderTopColor: "#E5E7EB",
-          height: 78,
-          paddingTop: 8,
-          paddingBottom: 10,
-          paddingHorizontal: 12,
-          backgroundColor: "#FFFFFF",
-          shadowColor: "#809BCE",
-          shadowOpacity: 0.12,
-          shadowOffset: { width: 0, height: -2 },
-          shadowRadius: 10,
-          elevation: 12,
+        tabBarStyle: APP_TAB_BAR_STYLE,
+        tabBarItemStyle: {
+          height: 60,
+          alignItems: "center",
+          justifyContent: "center",
+        },
+        tabBarIconStyle: {
+          width: 34,
+          height: 30,
+          marginTop: 0,
+          marginBottom: 0,
         },
         tabBarIcon: ({ color }) => {
           const routeName = route.name as keyof TabsParamList
@@ -2220,6 +2419,15 @@ export default function App() {
                   setFlowAppState={setFlowAppState}
                   locale={locale}
                   onToggleLocale={toggleLocale}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="CentreDetailApp" options={{ headerShown: false }}>
+              {(props) => (
+                <CentreDetailScreen
+                  {...props}
+                  flowAppState={flowAppState}
+                  setFlowAppState={setFlowAppState}
                 />
               )}
             </Stack.Screen>
@@ -2838,6 +3046,133 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   searchInput: { flex: 1, fontSize: 16, color: "#111827" },
+  centreDetailScreen: { flex: 1, backgroundColor: "#FFFFFF" },
+  centreDetailScrollContent: { paddingBottom: 18 },
+  centreDetailHeroWrap: { width: "100%", height: 230, position: "relative", backgroundColor: "#E5E7EB" },
+  centreDetailHero: { width: "100%", height: "100%" },
+  centreDetailRoundButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.94)",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  centreDetailBackButton: { position: "absolute", top: 14, left: 14 },
+  centreDetailHeroActions: { position: "absolute", top: 14, right: 14, flexDirection: "row", gap: 8 },
+  centreDetailContent: { paddingHorizontal: 18, paddingTop: 16, gap: 10 },
+  centreDetailTitleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  centreDetailLogoWrap: { width: 36, height: 36, borderRadius: 18, overflow: "hidden", backgroundColor: "#F4AE00" },
+  centreDetailLogo: { width: "100%", height: "100%" },
+  centreDetailTitle: { flex: 1, fontSize: 18, lineHeight: 22, fontWeight: "700", color: "#222222" },
+  centreDetailRatingRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  centreDetailRating: { fontSize: 12, fontWeight: "600", color: "#222222" },
+  centreDetailReviewLink: { fontSize: 12, color: "#343434", textDecorationLine: "underline" },
+  centreDetailAddressRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  centreDetailAddress: { flex: 1, fontSize: 11, color: "#4B5563" },
+  centreDetailDescription: { fontSize: 11, lineHeight: 16, color: "#6B7280", marginTop: 10 },
+  centreDetailDivider: { height: 1, backgroundColor: "#E9E9E9", marginVertical: 4 },
+  centreDetailSectionTitle: { fontSize: 14, fontWeight: "700", color: "#222222" },
+  centreDetailMembersRow: { flexDirection: "row", gap: 12 },
+  centreDetailMember: { flex: 1, gap: 4 },
+  centreDetailMemberImage: { width: "100%", height: 138, borderRadius: 8, backgroundColor: "#E5E7EB" },
+  centreDetailMemberName: { fontSize: 12, fontWeight: "600", color: "#222222" },
+  centreDetailMemberRole: { fontSize: 10, color: "#777777" },
+  centreDetailServices: { gap: 14 },
+  centreDetailServiceRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  centreDetailServiceCopy: { flex: 1, gap: 2 },
+  centreDetailServiceTitle: { fontSize: 12, fontWeight: "700", color: "#222222" },
+  centreDetailServiceDescription: { fontSize: 10, lineHeight: 14, color: "#6B7280" },
+  centreDetailMap: {
+    width: "100%",
+    height: 190,
+    borderRadius: 8,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: "#E5F4EA",
+    borderWidth: 1,
+    borderColor: "#D6E8DF",
+  },
+  centreDetailMapRoad: { position: "absolute", backgroundColor: "#FFFFFF", borderColor: "#D8DEE3", borderWidth: 1 },
+  centreDetailMapRoadHorizontal: { left: -20, right: -20, top: 86, height: 24, transform: [{ rotate: "-8deg" }] },
+  centreDetailMapRoadVertical: { top: -20, bottom: -20, left: "48%", width: 22, transform: [{ rotate: "12deg" }] },
+  centreDetailMapLabel: { position: "absolute", fontSize: 10, fontWeight: "600", color: "#64748B" },
+  centreDetailMapPin: {
+    position: "absolute",
+    left: "50%",
+    top: "50%",
+    width: 38,
+    height: 38,
+    marginLeft: -19,
+    marginTop: -19,
+    borderRadius: 19,
+    backgroundColor: "#111111",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
+  },
+  centreDetailSuggestions: { gap: 12, paddingBottom: 6, paddingRight: 18 },
+  centreDetailSuggestionCard: {
+    width: 235,
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 7,
+    elevation: 4,
+  },
+  centreDetailSuggestionImageWrap: { height: 112, position: "relative", backgroundColor: "#E5E7EB" },
+  centreDetailSuggestionImage: { width: "100%", height: "100%" },
+  centreDetailSuggestionBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  centreDetailSuggestionBadgeText: { fontSize: 9, fontWeight: "600", color: "#222222" },
+  centreDetailSuggestionBody: { padding: 10, gap: 6 },
+  centreDetailSuggestionTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  centreDetailSuggestionTitle: { flex: 1, fontSize: 11, fontWeight: "700", color: "#222222" },
+  centreDetailSuggestionRating: { fontSize: 10, color: "#222222" },
+  centreDetailSuggestionMeta: { fontSize: 10, color: "#6B7280" },
+  centreDetailFooter: {
+    minHeight: 72,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  centreDetailFooterPrice: { fontSize: 12, color: "#343434" },
+  centreDetailFooterAvailability: { marginTop: 4, fontSize: 10, color: "#777777" },
+  centreDetailProgramsButton: {
+    flex: 1,
+    maxWidth: 190,
+    minHeight: 42,
+    borderRadius: 6,
+    backgroundColor: "#222222",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  centreDetailProgramsButtonText: { fontSize: 12, fontWeight: "600", color: "#FFFFFF" },
   kpiRow: { flexDirection: "row", gap: 10 },
   kpiCard: { flex: 1, borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff", padding: 12 },
   kpiValue: { fontSize: 20, fontWeight: "700", color: "#111827" },
@@ -2975,6 +3310,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "transparent",
+    transform: [{ translateY: 0 }],
   },
   realTabIconWrapActive: { backgroundColor: "transparent" },
   realTabIcon: { width: 21, height: 21, resizeMode: "contain" },

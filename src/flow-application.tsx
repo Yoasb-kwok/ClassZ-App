@@ -10,6 +10,20 @@ type Program = {
   rating: number
 }
 
+type Centre = {
+  id: string
+  name: string
+  detailName?: string
+  categories: string[]
+  location: string
+  address: string
+  priceFrom: number
+  rating: number
+  reviewCount: number
+  supportsSen: boolean
+  imageIndex: number
+}
+
 type Booking = {
   id: string
   programId: string
@@ -30,9 +44,11 @@ type Companion = "Rabbit" | "Owl" | "Dolphin" | "Turtle" | "Fox" | "Bee"
 
 export type FlowAppState = {
   programs: Program[]
+  centres: Centre[]
   searchQuery: string
   selectedCategory: string | null
   selectedProgramId: string | null
+  selectedCentreId: string | null
   couponCode: string
   bookings: Booking[]
   students: Student[]
@@ -49,9 +65,19 @@ export function createInitialFlowAppState(): FlowAppState {
       { id: "p3", title: "Creative Art Lab", category: "Art", location: "Tsim Sha Tsui", price: 280, rating: 4.72 },
       { id: "p4", title: "Academic Focus Class", category: "Academic", location: "Mong Kok", price: 340, rating: 4.85 },
     ],
+    centres: [
+      { id: "c1", name: "ClassZ Playgroup Centre", detailName: "ClassZ Playgroup Bright Kids Drawing Centre", categories: ["Music"], location: "Causeway Bay", address: "Shop 18, Class Mall, Central, Hong Kong", priceFrom: 299, rating: 4.91, reviewCount: 50, supportsSen: true, imageIndex: 0 },
+      { id: "c2", name: "Harmony Music Academy", categories: ["Music"], location: "Central", address: "28 Queen's Road Central, Hong Kong", priceFrom: 360, rating: 4.85, reviewCount: 38, supportsSen: false, imageIndex: 1 },
+      { id: "c3", name: "ClassZ STEM Lab", categories: ["STEM"], location: "Causeway Bay", address: "88 Hennessy Road, Causeway Bay", priceFrom: 320, rating: 4.88, reviewCount: 44, supportsSen: true, imageIndex: 1 },
+      { id: "c4", name: "ClassZ Art Studio", categories: ["Art"], location: "Tsim Sha Tsui", address: "18 Cameron Road, Tsim Sha Tsui", priceFrom: 280, rating: 4.72, reviewCount: 31, supportsSen: true, imageIndex: 0 },
+      { id: "c5", name: "Active Kids Sports Centre", categories: ["Sports"], location: "Tai Po", address: "12 On Pong Road, Tai Po", priceFrom: 260, rating: 4.79, reviewCount: 27, supportsSen: false, imageIndex: 1 },
+      { id: "c6", name: "Bright Path Learning Centre", categories: ["Academic"], location: "Mong Kok", address: "700 Nathan Road, Mong Kok", priceFrom: 340, rating: 4.85, reviewCount: 42, supportsSen: true, imageIndex: 0 },
+      { id: "c7", name: "Creative Horizons Centre", categories: ["Others"], location: "Tsuen Wan", address: "8 Yeung Uk Road, Tsuen Wan", priceFrom: 250, rating: 4.68, reviewCount: 19, supportsSen: false, imageIndex: 1 },
+    ],
     searchQuery: "",
     selectedCategory: null,
     selectedProgramId: "p1",
+    selectedCentreId: "c1",
     couponCode: "",
     bookings: [],
     students: [
@@ -135,10 +161,13 @@ function SearchFeature({
   onGoToFlowName?: (name: string) => void
 }) {
   const categories = ["STEM", "Sports", "Academic", "Art", "Music", "Others"]
-  const filtered = state.programs.filter((p) => {
+  const filtered = state.centres.filter((centre) => {
     const keyword = state.searchQuery.trim().toLowerCase()
-    const categoryOk = !state.selectedCategory || p.category === state.selectedCategory
-    const queryOk = !keyword || p.title.toLowerCase().includes(keyword) || p.location.toLowerCase().includes(keyword)
+    const categoryOk = !state.selectedCategory || centre.categories.includes(state.selectedCategory)
+    const queryOk = !keyword
+      || centre.name.toLowerCase().includes(keyword)
+      || centre.location.toLowerCase().includes(keyword)
+      || centre.categories.some((category) => category.toLowerCase().includes(keyword))
     return categoryOk && queryOk
   })
 
@@ -164,17 +193,16 @@ function SearchFeature({
           ))}
         </View>
       </ScrollView>
-      {filtered.map((p) => (
+      {filtered.map((centre) => (
         <Pressable
-          key={p.id}
+          key={centre.id}
           style={styles.card}
           onPress={() => {
-            setState((prev) => ({ ...prev, selectedProgramId: p.id }))
-            onGoToFlowName?.("Reservation")
+            setState((prev) => ({ ...prev, selectedCentreId: centre.id }))
           }}
         >
-          <Text style={styles.cardTitle}>{p.title}</Text>
-          <Text style={styles.text}>Category: {p.category} · {p.location}</Text>
+          <Text style={styles.cardTitle}>{centre.name}</Text>
+          <Text style={styles.text}>{centre.categories.join(" · ")} · {centre.location}</Text>
         </Pressable>
       ))}
     </View>
