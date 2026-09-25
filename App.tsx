@@ -8,7 +8,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack"
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs"
 import Feather from "@expo/vector-icons/Feather"
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons"
-import { Path, Svg, SvgXml } from "react-native-svg"
+import { SvgXml } from "react-native-svg"
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context"
 import { GestureHandlerRootView, Swipeable } from "react-native-gesture-handler"
 import {
@@ -117,6 +117,7 @@ type RootStackParamList = {
   AttendanceConfirmedApp: ScheduleClassDetailRouteParams
   AcademicDashboardApp: undefined
   ActivityDashboardApp: undefined
+  ActivityLearningPictureApp: undefined
   AcademicRecordApp: undefined
   ProgramRecordApp: { programTitle: string }
   ClassRecordApp: { programTitle: string; lesson: string }
@@ -1737,7 +1738,7 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
                     resizeMode="cover"
                   />
                 ))}
-              </View>
+          </View>
             ) : (
               <Image source={{ uri: selectedChild.image }} style={styles.scheduleScopeAvatar} resizeMode="cover" />
             )}
@@ -1848,10 +1849,10 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
                         selected ? styles.scheduleDayNumberSelected : null,
                       ]}>
                         {day}
-                      </Text>
-                    </View>
+            </Text>
+          </View>
                     {hasEvent ? <View style={styles.scheduleDayDot} /> : null}
-                  </View>
+        </View>
                 )
               })}
             </View>
@@ -2032,9 +2033,9 @@ function TransactionDetailScreen({
             <View style={styles.transactionDetailLessonList}>
               <Text style={styles.transactionDetailLessonHeading}>Lesson dates</Text>
               <LessonDateRows dates={lessonDates} />
-            </View>
-          ) : null}
-        </View>
+          </View>
+        ) : null}
+          </View>
 
         <View style={styles.transactionDetailCard}>
           <Text style={styles.transactionDetailSectionTitle}>Payment Breakdown</Text>
@@ -2215,7 +2216,7 @@ function CompletedClassDetailScreen({
             <Text style={styles.reservationLink}>Refund Policy</Text> and{" "}
             <Text style={styles.reservationLink}>Terms and Conditions</Text>. Confirmed bookings are non-refundable, including sickness or absence. Direct centre arrangements may not be covered by <ZCareWord /> or ClassZ Passport.
           </Text>
-        </ScrollView>
+      </ScrollView>
       </KeyboardAvoidingView>
 
       <View style={styles.classDetailBottomNav}>
@@ -2265,11 +2266,11 @@ function ScheduleClassDetailScreen({
               <View style={styles.confirmedMetaRow}>
                 <Feather name="globe" size={14} color="#777777" />
                 <Text style={styles.confirmedMetaText}>Cantonese</Text>
-              </View>
+          </View>
               <View style={styles.confirmedMetaRow}>
                 <Feather name="map-pin" size={14} color="#777777" />
                 <Text style={styles.confirmedMetaText}>Shop 1B, Class Mall, Central, Hong Kong</Text>
-              </View>
+        </View>
             </View>
           </View>
         </View>
@@ -2349,8 +2350,8 @@ function ScheduleClassDetailScreen({
         ))}
         <Pressable style={styles.favouriteBottomNavItem} onPress={() => navigation.navigate("AppTabs", { screen: "Profile" })}>
           <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.profileTabAvatar} resizeMode="cover" />
-        </Pressable>
-      </View>
+          </Pressable>
+        </View>
     </SafeAreaView>
   )
 }
@@ -2590,13 +2591,11 @@ function AttendanceConfirmedScreen({
   )
 }
 
-function PassportWordmark() {
-  return (
-    <Text style={styles.analyticsWordmark}>
-      <Text style={styles.analyticsWordmarkZ}>z</Text>.passport
-    </Text>
-  )
-}
+const PASSPORT_CARD_ART = {
+  companion: require("./assets/figma/analytics/passport-companion.png"),
+  academic: require("./assets/figma/analytics/passport-academic.png"),
+  activity: require("./assets/figma/analytics/passport-activity.png"),
+} as const
 
 function AnalyticsChildIdentity({ flowAppState, showLevel }: { flowAppState: FlowAppState; showLevel: boolean }) {
   const selectedStudent = flowAppState.students.find((student) => student.id === flowAppState.selectedStudentId) || flowAppState.students[0]
@@ -2659,43 +2658,12 @@ function AnalyticsTabScreen({
   const selectedStudent = flowAppState.students.find((student) => student.id === flowAppState.selectedStudentId) || flowAppState.students[0]
   const selectedChild = BOOKING_CHILDREN.find((child) => child.id === selectedStudent.id) || BOOKING_CHILDREN[0]
 
-  const passportCards = [
-    {
-      title: "Activity Growth Record",
-      description: "For activity, enrichment, skill-based learning",
-      icon: "lightning-bolt-outline" as const,
-      onPress: () => navigation.navigate("ActivityDashboardApp"),
-    },
-    {
-      title: "Academic Learning Record",
-      description: "For academic, tuition, subject-based learning",
-      icon: "school-outline" as const,
-      onPress: () => navigation.navigate("AcademicDashboardApp"),
-    },
-    {
-      title: "Learning Companion",
-      description: "Reflects your child’s recent learning style",
-      icon: "star-outline" as const,
-      onPress: () => navigation.navigate("CompanionApp"),
-    },
-  ]
-
   return (
     <SafeAreaView style={styles.analyticsScreen} edges={["top"]}>
       <ScrollView style={styles.page} contentContainerStyle={styles.analyticsPassportContent} showsVerticalScrollIndicator={false}>
-        <View pointerEvents="none" style={styles.analyticsWatermarkWrap}>
-          <Svg width="100%" height="100%" viewBox="0 0 390 760" preserveAspectRatio="xMidYMin slice">
-            <Path
-              d="M354 65 C331 61 319 80 330 103 C366 177 361 222 325 260 C295 291 234 308 192 339 C116 394 103 488 16 528 L-32 548 L-32 668 C59 647 115 600 142 525 C171 445 184 405 265 365 C339 328 385 302 408 245 L408 85 C391 76 371 68 354 65 Z"
-              fill="#EFFBFC"
-            />
-            <Path
-              d="M401 541 C346 507 302 520 279 562 C252 609 270 687 307 759 L419 759 Z"
-              fill="#EFFBFC"
-            />
-          </Svg>
-        </View>
-        <PassportWordmark />
+        <Text style={styles.analyticsWordmark}>
+          <Text style={styles.analyticsWordmarkZ}>z</Text>passport
+        </Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Switch child"
@@ -2705,7 +2673,7 @@ function AnalyticsTabScreen({
           <Image source={{ uri: selectedChild.image }} style={styles.analyticsPassportAvatar} resizeMode="cover" />
           <View style={styles.analyticsPassportNameRow}>
             <Text style={styles.analyticsPassportName}>{selectedStudent.name}</Text>
-            <Feather name="chevron-down" size={15} color="#333333" />
+            <Feather name="chevron-down" size={16} color="#222222" />
           </View>
           <View style={styles.analyticsPassportMetaRow}>
             <MaterialCommunityIcons name="gender-male" size={14} color="#0ABAB5" />
@@ -2716,30 +2684,37 @@ function AnalyticsTabScreen({
           </View>
         </Pressable>
 
-        <View style={styles.analyticsPassportCards}>
-          {passportCards.map((card, index) => (
+        <View style={styles.passportMenuPanel}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Learning Companion"
+            style={styles.passportCompanionCard}
+            onPress={() => navigation.navigate("CompanionApp")}
+          >
+            <Image source={PASSPORT_CARD_ART.companion} style={styles.passportCompanionArt} resizeMode="contain" />
+            <Text style={styles.passportMenuCardTitle}>Learning Companion</Text>
+          </Pressable>
+
+          <View style={styles.passportDashboardRow}>
             <Pressable
-              key={card.title}
               accessibilityRole="button"
-              style={[styles.analyticsPassportCard, index === 2 && styles.analyticsPassportCardLast]}
-              onPress={card.onPress}
+              accessibilityLabel="Academic Dashboard"
+              style={styles.passportDashboardCard}
+              onPress={() => navigation.navigate("AcademicDashboardApp")}
             >
-              <View style={styles.analyticsPassportCardTitleRow}>
-                <MaterialCommunityIcons name={card.icon} size={22} color="#0ABAB5" />
-                <Text style={styles.analyticsPassportCardTitle}>{card.title}</Text>
-              </View>
-              <View style={styles.analyticsPassportCardDivider} />
-              <View style={[styles.analyticsPassportCardFooter, index === 2 && styles.analyticsPassportCardFooterLast]}>
-                <Text style={styles.analyticsPassportCardDescription}>{card.description}</Text>
-                <Feather
-                  name="arrow-right"
-                  size={16}
-                  color="#0ABAB5"
-                  style={index === 2 ? styles.analyticsPassportLastArrow : undefined}
-                />
-              </View>
+              <Image source={PASSPORT_CARD_ART.academic} style={styles.passportDashboardArt} resizeMode="contain" />
+              <Text style={styles.passportMenuCardTitle}>Academic{"\n"}Dashboard</Text>
             </Pressable>
-          ))}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Activity Dashboard"
+              style={styles.passportDashboardCard}
+              onPress={() => navigation.navigate("ActivityDashboardApp")}
+            >
+              <Image source={PASSPORT_CARD_ART.activity} style={styles.passportDashboardArt} resizeMode="contain" />
+              <Text style={styles.passportMenuCardTitle}>Activity{"\n"}Dashboard</Text>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -2747,6 +2722,64 @@ function AnalyticsTabScreen({
 }
 
 type AnalyticsDashboardMode = "academic" | "activity"
+
+const DASHBOARD_ART = {
+  academic: {
+    hero: require("./assets/figma/analytics/academic-apple.png"),
+    recordIcon: require("./assets/figma/analytics/academic-folder-icon.png"),
+    programIcon: require("./assets/figma/analytics/academic-planner-icon.png"),
+    records: require("./assets/figma/analytics/academic-records.png"),
+    action: require("./assets/figma/analytics/academic-work-samples.png"),
+  },
+  activity: {
+    hero: require("./assets/figma/analytics/activity-trophy.png"),
+    recordIcon: require("./assets/figma/analytics/academic-folder-icon.png"),
+    programIcon: require("./assets/figma/analytics/academic-planner-icon.png"),
+    records: require("./assets/figma/analytics/activity-records.png"),
+    action: require("./assets/figma/analytics/activity-moments.png"),
+  },
+} as const
+
+const DASHBOARD_COPY = {
+  academic: {
+    title: "Academic Dashboard",
+    badge: "Early observations",
+    badgeStyle: "teal" as const,
+    summary:
+      "Charlie generally approaches activities with good persistence and is increasingly willing to stay with a task when it becomes challenging. He is more confident with familiar activities, while new techniques can still require some guidance",
+    unlock: "More details will be unlocked after 5 records",
+    recordCount: 8,
+    recordLabel: "Total academic record",
+    programCount: 32,
+    programLabel: "Total academic program",
+    recordTitle: "Academic Record",
+    rows: [
+      { name: "S3 Maths Class", date: "Updated 12 May 2025" },
+      { name: "S3 Chinese Class", date: "Updated 11 May 2025" },
+      { name: "Advance English Speaking", date: "Updated 09 May 2025" },
+    ],
+    actionTitle: "Work Samples",
+  },
+  activity: {
+    title: "Activity Dashboard",
+    badge: "Consistent pattern",
+    badgeStyle: "amber" as const,
+    summary:
+      "Charlie generally approaches activities with good persistence and is increasingly willing to stay with a task when it becomes challenging. He is more confident with familiar activities, while new techniques can still require some guidance",
+    unlock: "More details will be unlocked after 5 records",
+    recordCount: 8,
+    recordLabel: "Total activity record",
+    programCount: 32,
+    programLabel: "Total activity program",
+    recordTitle: "Activity Record",
+    rows: [
+      { name: "Guitar Program", date: "Updated 12 May 2025" },
+      { name: "Chess Program", date: "Updated 11 May 2025" },
+      { name: "Badminton Team", date: "Updated 09 May 2025" },
+    ],
+    actionTitle: "Moments",
+  },
+} as const
 
 function AnalyticsDashboardScreen({
   navigation,
@@ -2758,13 +2791,11 @@ function AnalyticsDashboardScreen({
   mode: AnalyticsDashboardMode
 }) {
   const isAcademic = mode === "academic"
-  const records = isAcademic ? 32 : 12
-  const enrolled = isAcademic ? 32 : 14
-  const title = isAcademic ? "Academic Learning Record" : "Activity Learning Record"
-  const recordTitle = isAcademic ? "Learning Record" : "Activity Record"
-  const className = isAcademic ? "S3 Maths Class" : "ClassZ Guitar Program"
-  const actionTitle = isAcademic ? "Work Samples" : "Moments"
-  const dates = ["Updated 12 May 2025", "Updated 11 May 2025", "Updated 09 May 2025"]
+  const art = DASHBOARD_ART[mode]
+  const copy = DASHBOARD_COPY[mode]
+  const selectedStudent = flowAppState.students.find((student) => student.id === flowAppState.selectedStudentId) || flowAppState.students[0]
+  const firstName = selectedStudent.name.split(" ")[0] || "Your child"
+  const summary = copy.summary.replace(/\bCharlie\b/g, firstName)
 
   return (
     <SafeAreaView style={styles.analyticsScreen} edges={["top", "bottom"]}>
@@ -2772,68 +2803,170 @@ function AnalyticsDashboardScreen({
         <Pressable accessibilityRole="button" accessibilityLabel="Back" style={styles.analyticsDashboardBack} onPress={() => navigation.goBack()}>
           <Feather name="chevron-left" size={22} color="#858585" />
         </Pressable>
-        <Text style={styles.analyticsDashboardHeaderTitle}>{title}</Text>
+        <Text style={styles.analyticsDashboardHeaderTitle}>{copy.title}</Text>
         <View style={styles.analyticsDashboardHeaderSpacer} />
       </View>
 
       <ScrollView style={styles.page} contentContainerStyle={styles.analyticsDashboardContent} showsVerticalScrollIndicator={false}>
-        <AnalyticsChildIdentity flowAppState={flowAppState} showLevel={isAcademic} />
+        <AnalyticsChildIdentity flowAppState={flowAppState} showLevel />
 
-        <View style={styles.analyticsSnapshotCard}>
-          <View style={styles.analyticsSnapshotTitleRow}>
-            <Text style={styles.analyticsSnapshotTitle}>Activity Snapshot</Text>
-            <Text style={styles.analyticsSnapshotLink}>Early observations</Text>
-          </View>
-          <View style={styles.analyticsSnapshotBody}>
-            <Text style={styles.analyticsSnapshotText}>
-              Across recent activity records, your child often showed strength in <Text style={styles.analyticsSnapshotBold}>Focus / Persistence</Text> and <Text style={styles.analyticsSnapshotBold}>Creativity</Text>, while coaches suggested focusing more on <Text style={styles.analyticsSnapshotBold}>Technique / Control</Text> and <Text style={styles.analyticsSnapshotBold}>Confidence to Try</Text>.
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.analyticsMetricRow}>
-          <View style={styles.analyticsMetricCard}>
-            <View style={styles.analyticsMetricTitleRow}>
-              <SvgXml xml={ANALYTICS_SVGS.clipboardCheck} width={24} height={24} />
-              <Text style={styles.analyticsMetricTitle}>{isAcademic ? "Academic\nrecords" : "Activity\nrecords"}</Text>
-            </View>
-            <View style={styles.analyticsMetricValueRow}>
-              <Text style={styles.analyticsMetricValue}>{records}</Text>
-              <Text style={styles.analyticsMetricUnit}>records</Text>
-            </View>
-          </View>
-          <View style={styles.analyticsMetricCard}>
-            <View style={styles.analyticsMetricTitleRow}>
-              <SvgXml xml={ANALYTICS_SVGS.clipboardText} width={24} height={24} />
-              <Text style={styles.analyticsMetricTitle}>{isAcademic ? "Enrolled\nClasses" : "Enrolled\nProgrammes"}</Text>
-            </View>
-            <View style={styles.analyticsMetricValueRow}>
-              <Text style={styles.analyticsMetricValue}>{enrolled}</Text>
-              <Text style={styles.analyticsMetricUnit}>records</Text>
-            </View>
-          </View>
-        </View>
-
-        <Pressable accessibilityRole="button" style={styles.analyticsRecordCard} onPress={() => navigation.navigate(isAcademic ? "AcademicRecordApp" : "LearningRecordsApp")}>
-          <Text style={styles.analyticsRecordTitle}>{recordTitle}</Text>
-          <View style={styles.analyticsRecordDivider} />
-          {dates.map((date) => (
-            <View key={date} style={styles.analyticsRecordRow}>
-              <View style={styles.analyticsRecordNameRow}>
-                <View style={styles.analyticsRecordDot} />
-                <Text style={styles.analyticsRecordName}>{className}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Overall Learning Picture"
+          disabled={isAcademic}
+          style={styles.dashboardPictureCard}
+          onPress={() => {
+            if (!isAcademic) navigation.navigate("ActivityLearningPictureApp")
+          }}
+        >
+          <View style={styles.dashboardPictureHeader}>
+            <View style={styles.dashboardPictureHeaderCopy}>
+              <Text style={styles.dashboardPictureTitle}>Overall Learning Picture</Text>
+              <View style={[styles.dashboardBadge, copy.badgeStyle === "amber" ? styles.dashboardBadgeAmber : styles.dashboardBadgeTeal]}>
+                <Text style={[styles.dashboardBadgeText, copy.badgeStyle === "amber" ? styles.dashboardBadgeTextAmber : styles.dashboardBadgeTextTeal]}>
+                  {copy.badge}
+                </Text>
               </View>
-              <Text style={styles.analyticsRecordDate}>{date}</Text>
             </View>
-          ))}
+            <Image source={art.hero} style={styles.dashboardPictureHero} resizeMode="contain" />
+          </View>
+          <Text style={styles.dashboardPictureText}>{summary}</Text>
+          <Text style={styles.dashboardPictureUnlock}>{copy.unlock}</Text>
         </Pressable>
 
-        <Pressable accessibilityRole="button" style={styles.analyticsActionCard} onPress={() => navigation.navigate(isAcademic ? "WorkSamplesApp" : "LearningRecordsApp")}>
-          <SvgXml xml={isAcademic ? ANALYTICS_SVGS.workSamples : ANALYTICS_SVGS.moments} width={24} height={24} />
-          <Text style={styles.analyticsActionTitle}>{actionTitle}</Text>
+        <View style={styles.analyticsMetricRow}>
+          <View style={styles.dashboardMetricCard}>
+            <View style={styles.dashboardMetricValueRow}>
+              <Image source={art.recordIcon} style={styles.dashboardMetricIcon} resizeMode="contain" />
+              <Text style={styles.dashboardMetricValue}>{copy.recordCount}</Text>
+            </View>
+            <Text style={styles.dashboardMetricLabel}>{copy.recordLabel}</Text>
+          </View>
+          <View style={styles.dashboardMetricCard}>
+            <View style={styles.dashboardMetricValueRow}>
+              <Image source={art.programIcon} style={styles.dashboardMetricIcon} resizeMode="contain" />
+              <Text style={styles.dashboardMetricValue}>{copy.programCount}</Text>
+            </View>
+            <Text style={styles.dashboardMetricLabel}>{copy.programLabel}</Text>
+          </View>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={copy.recordTitle}
+          style={styles.dashboardRecordCard}
+          onPress={() => navigation.navigate(isAcademic ? "AcademicRecordApp" : "LearningRecordsApp")}
+        >
+          <View style={styles.dashboardRecordHeader}>
+            <Text style={styles.dashboardRecordTitle}>{copy.recordTitle}</Text>
+            <Image source={art.records} style={styles.dashboardRecordArt} resizeMode="contain" />
+          </View>
+          <View style={styles.dashboardRecordRows}>
+            {copy.rows.map((row) => (
+              <View key={`${row.name}-${row.date}`} style={styles.dashboardRecordRow}>
+                <Text style={styles.dashboardRecordName} numberOfLines={1}>{row.name}</Text>
+                <Text style={styles.dashboardRecordDate}>{row.date}</Text>
+              </View>
+            ))}
+          </View>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={copy.actionTitle}
+          style={styles.dashboardActionCard}
+          onPress={() => navigation.navigate(isAcademic ? "WorkSamplesApp" : "LearningRecordsApp")}
+        >
+          <Image source={art.action} style={styles.dashboardActionArt} resizeMode="contain" />
+          <Text style={styles.dashboardActionTitle}>{copy.actionTitle}</Text>
         </Pressable>
       </ScrollView>
 
+      <AnalyticsBottomNavigation navigation={navigation} />
+    </SafeAreaView>
+  )
+}
+
+const ACTIVITY_INSIGHTS = [
+  {
+    title: "Stronger Areas",
+    art: require("./assets/figma/analytics/activity-stronger.png") as number,
+    items: [
+      { title: "Focus & Persistence", body: "Charlie has repeatedly stayed engaged with activities and continued trying when a task became more difficult." },
+      { title: "Independent Trying", body: "In familiar situations, Charlie is increasingly willing to begin and work through parts of the activity independently." },
+    ],
+  },
+  {
+    title: "Areas Needing More Support",
+    art: null,
+    items: [
+      { title: "Technique & Control", body: "Charlie sometimes needs guidance when learning a new technique or when more precise control is required." },
+      { title: "Confidence with New Tasks", body: "When an activity feels unfamiliar, Charlie can benefit from some initial support before trying it independently." },
+    ],
+  },
+  {
+    title: "Differences Across Programmes",
+    art: require("./assets/figma/analytics/activity-differences.png") as number,
+    items: [
+      { title: "Guitar", body: "Charlie tends to work patiently through practice activities, although unfamiliar chord changes can require guidance." },
+      { title: "Chess", body: "He appears more independent when thinking through familiar problem-solving steps." },
+      { title: "Badminton", body: "Charlie engages actively, while consistent technique and control can require more support." },
+    ],
+  },
+  {
+    title: "What Seems to Help Across Programmes",
+    art: require("./assets/figma/analytics/activity-help.png") as number,
+    items: [
+      { title: "Short prompts and clear demonstrations", body: "Brief prompts and demonstrations have helped Charlie understand what to do next and continue with the activity." },
+    ],
+  },
+]
+
+function ActivityLearningPictureScreen({ navigation, flowAppState }: { navigation: any; flowAppState: FlowAppState }) {
+  const selectedStudent = flowAppState.students.find((student) => student.id === flowAppState.selectedStudentId) || flowAppState.students[0]
+  const firstName = selectedStudent.name.split(" ")[0] || "Your child"
+  const summary = DASHBOARD_COPY.activity.summary.replace(/\bCharlie\b/g, firstName)
+
+  return (
+    <SafeAreaView style={styles.analyticsScreen} edges={["top", "bottom"]}>
+      <View style={styles.analyticsDashboardHeader}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" style={styles.analyticsDashboardBack} onPress={() => navigation.goBack()}>
+          <Feather name="chevron-left" size={22} color="#858585" />
+        </Pressable>
+        <Text style={styles.analyticsDashboardHeaderTitle}>Activity Dashboard</Text>
+        <View style={styles.analyticsDashboardHeaderSpacer} />
+      </View>
+      <ScrollView style={styles.page} contentContainerStyle={styles.analyticsDashboardContent} showsVerticalScrollIndicator={false}>
+        <AnalyticsChildIdentity flowAppState={flowAppState} showLevel />
+        <View style={styles.dashboardPictureCard}>
+          <View style={styles.dashboardPictureHeader}>
+            <View style={styles.dashboardPictureHeaderCopy}>
+              <Text style={styles.dashboardPictureTitle}>Overall Learning Picture</Text>
+              <View style={[styles.dashboardBadge, styles.dashboardBadgeAmber]}>
+                <Text style={[styles.dashboardBadgeText, styles.dashboardBadgeTextAmber]}>Consistent pattern</Text>
+              </View>
+            </View>
+            <Image source={DASHBOARD_ART.activity.hero} style={styles.dashboardPictureHero} resizeMode="contain" />
+          </View>
+          <Text style={styles.dashboardPictureText}>{summary}</Text>
+        </View>
+        {ACTIVITY_INSIGHTS.map((section) => (
+          <View key={section.title} style={styles.activityInsightCard}>
+            <View style={styles.activityInsightHeader}>
+              <Text style={styles.activityInsightTitle}>{section.title}</Text>
+              {section.art ? <Image source={section.art} style={styles.activityInsightArt} resizeMode="contain" /> : null}
+            </View>
+            <View style={styles.activityInsightItems}>
+              {section.items.map((item) => (
+                <View key={item.title} style={styles.activityInsightItem}>
+                  <Text style={styles.activityInsightItemTitle}>{item.title}</Text>
+                  <Text style={styles.activityInsightItemBody}>{item.body.replace(/\bCharlie\b/g, firstName)}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ))}
+      </ScrollView>
       <AnalyticsBottomNavigation navigation={navigation} />
     </SafeAreaView>
   )
@@ -2864,8 +2997,8 @@ function ProfileScreen({
             <Pressable accessibilityLabel="Inbox" style={styles.profileRoundAction} onPress={() => navigation.navigate("InboxApp")}>
               <Feather name="message-square" size={17} color="#8A8A8A" />
             </Pressable>
+            </View>
           </View>
-        </View>
 
         <Pressable
           accessibilityRole="button"
@@ -2879,8 +3012,8 @@ function ProfileScreen({
               <View style={styles.profileAvatarEdit}>
                 <MaterialCommunityIcons name="lead-pencil" size={15} color="#FFFFFF" />
                 <View style={styles.profileAvatarEditLine} />
-              </View>
-            </View>
+        </View>
+        </View>
             <Text style={styles.profileMainName}>{profileName}</Text>
             <Text style={styles.profileLocation}>Hong Kong</Text>
           </View>
@@ -2900,7 +3033,7 @@ function ProfileScreen({
               <Text style={styles.profileStatLabel}>Years on ClassZ</Text>
             </View>
           </View>
-        </Pressable>
+          </Pressable>
 
         <View style={styles.profileFeatureRow}>
           <Pressable style={styles.profileFeatureCard} onPress={() => navigation.navigate("ChildProfileApp")}>
@@ -2912,9 +3045,9 @@ function ProfileScreen({
           <Pressable style={styles.profileFeatureCard} onPress={() => navigation.navigate("FavouriteApp")}>
             <View style={styles.profileFeatureIcon}>
               <Image source={PROFILE_FEATURE_ICONS.favourite} style={styles.profileFeatureImage} resizeMode="contain" />
-            </View>
+        </View>
             <Text style={styles.profileFeatureTitle}>Favourite</Text>
-          </Pressable>
+        </Pressable>
         </View>
 
         <Text style={styles.profileSettingsTitle}>Advance Settings</Text>
@@ -3708,7 +3841,7 @@ function ReservationAppScreen({
         </Pressable>
         <Text style={styles.programListHeaderTitle}>Reservation</Text>
         <View style={styles.programListHeaderSpacer} />
-      </View>
+          </View>
 
       <ScrollView
         style={styles.page}
@@ -3727,7 +3860,7 @@ function ReservationAppScreen({
               <View style={styles.reservationMetaRow}>
                 <Feather name="globe" size={14} color="#8A8A8A" />
                 <Text style={styles.reservationMetaText}>{schedule.language}</Text>
-              </View>
+        </View>
               <View style={styles.reservationMetaRow}>
                 <Feather name="map-pin" size={14} color="#8A8A8A" />
                 <Text style={styles.reservationMetaText}>{schedule.address}</Text>
@@ -3839,33 +3972,33 @@ function ReservationAppScreen({
                   style={[styles.reservationAttendeeAvatar, index === 0 ? null : styles.classOptionAvatarOverlap]}
                   resizeMode="cover"
                 />
-              ))}
-            </View>
+            ))}
+          </View>
             <Text style={styles.reservationGoingText}>+{schedule.goingCount} Going</Text>
             <Text style={styles.reservationSpotsText}>{schedule.spotsLeft} spots left</Text>
-          </View>
+        </View>
           <Text style={styles.reservationProtectText}>
             Your booking is protected by <ZCareWord style={styles.reservationProtectName} />
           </Text>
-          <Pressable
+        <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Reserve ${lessonCount} lessons from ${schedule.dateRange}`}
             style={styles.reservationReserveButton}
-            onPress={() => {
-              const booking = {
-                id: `b${Date.now()}`,
-                programId: active.id,
-                title: active.title,
-                lessonCount,
+          onPress={() => {
+            const booking = {
+              id: `b${Date.now()}`,
+              programId: active.id,
+              title: active.title,
+              lessonCount,
                 dateRange: schedule.dateRange,
-                total,
-              }
-              setFlowAppState((prev) => ({ ...prev, bookings: [booking, ...prev.bookings] }))
+              total,
+            }
+            setFlowAppState((prev) => ({ ...prev, bookings: [booking, ...prev.bookings] }))
               navigation.navigate("ReservationConfirmedApp", { schedule, total })
-            }}
-          >
+          }}
+        >
             <Text style={styles.reservationReserveButtonText}>Reserve</Text>
-          </Pressable>
+        </Pressable>
           <View style={styles.reservationBreakdown}>
             <View style={styles.reservationBreakdownRow}>
               <Text style={styles.reservationBreakdownLabel}>{schedule.price} x {lessonCount} lessons</Text>
@@ -5583,6 +5716,9 @@ export default function App() {
             </Stack.Screen>
             <Stack.Screen name="ActivityDashboardApp" options={{ headerShown: false }}>
               {(props) => <AnalyticsDashboardScreen {...props} flowAppState={flowAppState} mode="activity" />}
+            </Stack.Screen>
+            <Stack.Screen name="ActivityLearningPictureApp" options={{ headerShown: false }}>
+              {(props) => <ActivityLearningPictureScreen {...props} flowAppState={flowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="AcademicRecordApp" component={AcademicRecordScreen} options={{ headerShown: false }} />
             <Stack.Screen name="ProgramRecordApp" component={ProgramRecordScreen} options={{ headerShown: false }} />
@@ -7653,12 +7789,12 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 520,
     alignSelf: "center",
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 28,
-    gap: 20,
+    flexGrow: 1,
+    paddingTop: 4,
+    paddingBottom: 0,
+    gap: 18,
   },
-  analyticsWordmark: { fontSize: 28, fontWeight: "700", color: "#222222" },
+  analyticsWordmark: { marginHorizontal: 16, fontSize: 26, fontWeight: "700", color: "#1A1A1A" },
   analyticsWordmarkZ: { color: "#0ABAB5" },
   analyticsWatermarkWrap: {
     position: "absolute",
@@ -7667,10 +7803,10 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 760,
   },
-  analyticsPassportChild: { alignItems: "center", alignSelf: "center", gap: 4, paddingHorizontal: 16 },
-  analyticsPassportAvatar: { width: 176, height: 176, borderRadius: 88, backgroundColor: "#E5E7EB" },
-  analyticsPassportNameRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  analyticsPassportName: { fontSize: FONT.heading, fontWeight: "700", color: "#222222" },
+  analyticsPassportChild: { alignItems: "center", alignSelf: "center", gap: 14, paddingHorizontal: 16 },
+  analyticsPassportAvatar: { width: 168, height: 168, borderRadius: 84, backgroundColor: "#E5E7EB" },
+  analyticsPassportNameRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  analyticsPassportName: { fontSize: FONT.headerTitle, fontWeight: "700", color: "#1A1A1A" },
   analyticsPassportMetaRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   analyticsPassportMeta: { fontSize: FONT.secondary, color: "#777777" },
   analyticsLevelBadge: { borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: "#DFF5F3" },
@@ -7696,6 +7832,49 @@ const styles = StyleSheet.create({
   analyticsPassportCardFooterLast: { flex: 1, alignItems: "flex-start", paddingTop: 10 },
   analyticsPassportLastArrow: { alignSelf: "flex-end" },
   analyticsPassportCardDescription: { flex: 1, fontSize: FONT.caption, lineHeight: 16, color: "#777777" },
+  passportMenuPanel: {
+    flexGrow: 1,
+    minHeight: 420,
+    marginTop: 22,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 12,
+    paddingTop: 16,
+    paddingBottom: 24,
+    gap: 14,
+    backgroundColor: "#F7F7F7",
+  },
+  passportCompanionCard: {
+    minHeight: 174,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  passportCompanionArt: { width: 96, height: 88 },
+  passportDashboardRow: { flexDirection: "row", gap: 16 },
+  passportDashboardCard: {
+    flex: 1,
+    minHeight: 194,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  passportDashboardArt: { width: 108, height: 108 },
+  passportMenuCardTitle: { fontSize: FONT.headerTitle, lineHeight: 21, fontWeight: "600", color: "#2A2A2A", textAlign: "center" },
   analyticsDashboardHeader: {
     width: "100%",
     maxWidth: 520,
@@ -7724,11 +7903,12 @@ const styles = StyleSheet.create({
   analyticsChildName: { fontSize: FONT.heading, fontWeight: "600", color: "#222222" },
   analyticsChildMetaRow: { flexDirection: "row", alignItems: "center", gap: 7 },
   analyticsChildMeta: { fontSize: FONT.secondary, color: "#777777" },
-  analyticsSnapshotCard: {
-    minHeight: 155,
-    borderRadius: 8,
-    padding: 14,
-    gap: 10,
+  analyticsMetricRow: { flexDirection: "row", gap: 14 },
+  dashboardPictureCard: {
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
     backgroundColor: "#FFFFFF",
     shadowColor: "#000000",
     shadowOpacity: 0.09,
@@ -7736,57 +7916,43 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
-  analyticsSnapshotTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  analyticsSnapshotTitle: { fontSize: FONT.headline, fontWeight: "600", color: "#222222" },
-  analyticsSnapshotLink: { fontSize: FONT.caption, fontWeight: "500", color: "#0ABAB5" },
-  analyticsSnapshotBody: { flex: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#F4F4F4" },
-  analyticsSnapshotText: { fontSize: FONT.caption, lineHeight: 16, color: "#333333" },
-  analyticsSnapshotBold: { fontWeight: "700", color: "#222222" },
-  analyticsMetricRow: { flexDirection: "row", gap: 14 },
-  analyticsMetricCard: {
+  dashboardPictureHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  dashboardPictureHeaderCopy: { flex: 1, gap: 10 },
+  dashboardPictureTitle: { fontSize: FONT.headline, fontWeight: "600", color: "#222222" },
+  dashboardPictureHero: { width: 74, height: 74 },
+  dashboardBadge: { alignSelf: "flex-start", borderRadius: 4, paddingHorizontal: 9, paddingVertical: 4 },
+  dashboardBadgeTeal: { backgroundColor: "#DFF5F3" },
+  dashboardBadgeAmber: { backgroundColor: "#F3E6C4" },
+  dashboardBadgeText: { fontSize: FONT.caption, fontWeight: "600" },
+  dashboardBadgeTextTeal: { color: "#3A6F6B" },
+  dashboardBadgeTextAmber: { color: "#7A6240" },
+  dashboardPictureText: { marginTop: 14, fontSize: FONT.caption, lineHeight: 16, color: "#333333" },
+  dashboardPictureUnlock: { marginTop: 10, fontSize: FONT.caption, fontWeight: "600", color: "#222222", textDecorationLine: "underline" },
+  dashboardMetricCard: {
     flex: 1,
-    minHeight: 127,
-    borderRadius: 8,
-    padding: 14,
-    justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#000000",
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  analyticsMetricTitleRow: { flexDirection: "row", alignItems: "flex-start", gap: 9 },
-  analyticsMetricTitle: { flex: 1, fontSize: FONT.body, lineHeight: 18, fontWeight: "500", color: "#222222" },
-  analyticsMetricValueRow: { flexDirection: "row", alignItems: "baseline", gap: 6 },
-  analyticsMetricValue: { fontSize: FONT.heading, fontWeight: "600", color: "#222222" },
-  analyticsMetricUnit: { fontSize: FONT.secondary, color: "#333333" },
-  analyticsRecordCard: {
-    minHeight: 125,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#000000",
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  analyticsRecordTitle: { fontSize: FONT.headline, fontWeight: "500", color: "#222222" },
-  analyticsRecordDivider: { height: StyleSheet.hairlineWidth, marginTop: 8, marginBottom: 9, backgroundColor: "#BDBDBD" },
-  analyticsRecordRow: { minHeight: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  analyticsRecordNameRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
-  analyticsRecordDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: "#0ABAB5" },
-  analyticsRecordName: { flex: 1, fontSize: FONT.caption, color: "#222222" },
-  analyticsRecordDate: { fontSize: FONT.caption, color: "#222222" },
-  analyticsActionCard: {
-    minHeight: 79,
-    borderRadius: 8,
-    flexDirection: "row",
+    minHeight: 96,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
-    gap: 9,
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  dashboardMetricValueRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 14 },
+  dashboardMetricIcon: { width: 26, height: 26 },
+  dashboardMetricValue: { fontSize: 28, lineHeight: 32, fontWeight: "700", color: "#1A1A1A" },
+  dashboardMetricLabel: { fontSize: FONT.caption, lineHeight: 16, color: "#4A4A4A", textAlign: "center" },
+  dashboardRecordCard: {
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 14,
     backgroundColor: "#FFFFFF",
     shadowColor: "#000000",
     shadowOpacity: 0.08,
@@ -7794,7 +7960,56 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 3,
   },
-  analyticsActionTitle: { fontSize: FONT.headerTitle, fontWeight: "500", color: "#222222" },
+  dashboardRecordHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  dashboardRecordTitle: { flex: 1, fontSize: FONT.headline, fontWeight: "600", color: "#222222" },
+  dashboardRecordArt: { width: 78, height: 70 },
+  dashboardRecordRows: { marginTop: 8, gap: 6 },
+  dashboardRecordRow: {
+    minHeight: 24,
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    backgroundColor: "#E9F7F6",
+  },
+  dashboardRecordName: { flex: 1, fontSize: FONT.micro, color: "#222222" },
+  dashboardRecordDate: { fontSize: FONT.micro, color: "#222222" },
+  dashboardActionCard: {
+    minHeight: 146,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  dashboardActionArt: { width: 82, height: 80 },
+  dashboardActionTitle: { fontSize: FONT.headline, fontWeight: "600", color: "#222222" },
+  activityInsightCard: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 18,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  activityInsightHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
+  activityInsightTitle: { flex: 1, fontSize: FONT.headerTitle, lineHeight: 22, fontWeight: "700", color: "#1A1A1A" },
+  activityInsightArt: { width: 72, height: 64 },
+  activityInsightItems: { marginTop: 14, gap: 16 },
+  activityInsightItem: { gap: 4 },
+  activityInsightItemTitle: { fontSize: FONT.bodyLg, lineHeight: 20, fontWeight: "700", color: "#1A1A1A" },
+  activityInsightItemBody: { fontSize: FONT.secondary, lineHeight: 18, color: "#6A6A6A" },
   analyticsBottomNav: {
     height: 64,
     borderTopWidth: StyleSheet.hairlineWidth,
