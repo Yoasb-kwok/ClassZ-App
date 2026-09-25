@@ -45,7 +45,7 @@ import { HOME_BANNER, HOME_PASSPORT_IMAGE, HOME_RECOMMEND_IMAGES, HOME_TRENDING_
 import { HOME_CATEGORY_SVGS } from "./src/home-category-svgs"
 import { HOME_HEADER_SVGS } from "./src/home-header-svgs"
 import { ANALYTICS_SVGS } from "./src/analytics-svgs"
-import { AcademicRecordScreen, ClassRecordScreen, ProgramRecordScreen, WorkSamplesScreen } from "./src/analytics-record-screens"
+import { AcademicRecordScreen, ActivityRecordScreen, ClassRecordScreen, MomentsScreen, ProgramRecordScreen, WorkSamplesScreen } from "./src/analytics-record-screens"
 import { LearningCompanionScreen } from "./src/learning-companion"
 import {
   AuthLandingScreen,
@@ -119,9 +119,11 @@ type RootStackParamList = {
   ActivityDashboardApp: undefined
   ActivityLearningPictureApp: undefined
   AcademicRecordApp: undefined
+  ActivityRecordApp: undefined
   ProgramRecordApp: { programTitle: string }
   ClassRecordApp: { programTitle: string; lesson: string }
   WorkSamplesApp: undefined
+  MomentsApp: undefined
   LearningRecordsApp: undefined
   CompanionApp: undefined
   InboxApp: undefined
@@ -2855,7 +2857,7 @@ function AnalyticsDashboardScreen({
           accessibilityRole="button"
           accessibilityLabel={copy.recordTitle}
           style={styles.dashboardRecordCard}
-          onPress={() => navigation.navigate(isAcademic ? "AcademicRecordApp" : "LearningRecordsApp")}
+          onPress={() => navigation.navigate(isAcademic ? "AcademicRecordApp" : "ActivityRecordApp")}
         >
           <View style={styles.dashboardRecordHeader}>
             <Text style={styles.dashboardRecordTitle}>{copy.recordTitle}</Text>
@@ -2875,7 +2877,7 @@ function AnalyticsDashboardScreen({
           accessibilityRole="button"
           accessibilityLabel={copy.actionTitle}
           style={styles.dashboardActionCard}
-          onPress={() => navigation.navigate(isAcademic ? "WorkSamplesApp" : "LearningRecordsApp")}
+          onPress={() => navigation.navigate(isAcademic ? "WorkSamplesApp" : "MomentsApp")}
         >
           <Image source={art.action} style={styles.dashboardActionArt} resizeMode="contain" />
           <Text style={styles.dashboardActionTitle}>{copy.actionTitle}</Text>
@@ -5721,14 +5723,16 @@ export default function App() {
               {(props) => <ActivityLearningPictureScreen {...props} flowAppState={flowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="AcademicRecordApp" component={AcademicRecordScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="ActivityRecordApp" component={ActivityRecordScreen} options={{ headerShown: false }} />
             <Stack.Screen name="ProgramRecordApp" component={ProgramRecordScreen} options={{ headerShown: false }} />
             <Stack.Screen name="ClassRecordApp" component={ClassRecordScreen} options={{ headerShown: false }} />
             <Stack.Screen name="WorkSamplesApp" component={WorkSamplesScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="MomentsApp" component={MomentsScreen} options={{ headerShown: false }} />
             <Stack.Screen name="LearningRecordsApp" options={{ title: "Learning Records" }}>
               {(props) => <LearningRecordsAppScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="CompanionApp" options={{ headerShown: false }}>
-              {(props) => <LearningCompanionScreen {...props} childName={(flowAppState.students.find((student) => student.id === flowAppState.selectedStudentId) || flowAppState.students[0]).name} />}
+              {(props) => <LearningCompanionScreen {...props} childName={(flowAppState.students.find((student) => student.id === flowAppState.selectedStudentId) || flowAppState.students[0]).name} animal={flowAppState.generatedCompanions[flowAppState.selectedStudentId]} />}
             </Stack.Screen>
             <Stack.Screen name="InboxApp" options={{ title: tInbox(locale).title }}>
               {(props) => <InboxAppScreen {...props} locale={locale} />}

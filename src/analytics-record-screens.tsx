@@ -11,6 +11,42 @@ const GUITAR_IMAGE = { uri: FIGMA_ASSETS.reservation.program }
 const CENTRE_IMAGE = { uri: FIGMA_ASSETS.reservation.host }
 const COACH_IMAGE = { uri: FIGMA_ASSETS.reservation.coach }
 const WORK_SAMPLE_IMAGE = require("../assets/figma/analytics/work-sample.png")
+const GUITAR_RECORD_IMAGE = require("../assets/mobile/analytics/guitar-hero.png")
+const MOMENT_GUITAR = require("../assets/mobile/analytics/moment-guitar.png")
+const NOTE_HELP = require("../assets/mobile/analytics/note-help.png")
+const NOTE_OBSERVED = require("../assets/mobile/analytics/note-observed.png")
+const NOTE_COACH = require("../assets/mobile/analytics/note-coach.png")
+const PROGRAM_IMAGES: Record<string, number> = {
+  "Guitar Program": GUITAR_RECORD_IMAGE,
+  "Chess Program": require("../assets/mobile/analytics/record-chess.png"),
+  "Badminton Team": require("../assets/mobile/analytics/record-badminton.png"),
+  "Swimming Team": require("../assets/mobile/analytics/record-swimming.png"),
+}
+
+const ACTIVITY_GROUPS = [
+  {
+    date: "12 May, 26",
+    records: [
+      { title: "Guitar Program", count: 3, badge: "Early observations", badgeColor: "#E8F7F7", centre: "Class Music Club", image: require("../assets/mobile/analytics/record-guitar.png") },
+      { title: "Chess Program", count: 14, badge: "Consistent pattern", badgeColor: "#FFF7DF", centre: "Advance Elite Chess", image: require("../assets/mobile/analytics/record-chess.png") },
+    ],
+  },
+  {
+    date: "03 May, 26",
+    records: [
+      { title: "Badminton Team", count: 4, badge: "Emerging pattern", badgeColor: "#FFF0ED", centre: "Kidzo Sports Centre", image: require("../assets/mobile/analytics/record-badminton.png") },
+      { title: "Swimming Team", count: 2, badge: "Early observations", badgeColor: "#E8F7F7", centre: "Bright Kids Playgroup Centre", image: require("../assets/mobile/analytics/record-swimming.png") },
+    ],
+  },
+  { date: "02 May, 26", records: [] },
+] as const
+
+const MOMENTS = [
+  { title: "ClassZ Guitar Program", image: MOMENT_GUITAR },
+  { title: "Swimming Team", image: require("../assets/mobile/analytics/moment-swimming.png") },
+  { title: "Western Chess Program", image: require("../assets/mobile/analytics/moment-chess.png") },
+  { title: "Adventurous Outing Camp", image: require("../assets/mobile/analytics/moment-camping.png") },
+] as const
 
 const ACADEMIC_GROUPS = [
   {
@@ -130,19 +166,48 @@ export function AcademicRecordScreen({ navigation }: { navigation: any }) {
   )
 }
 
+export function ActivityRecordScreen({ navigation }: { navigation: any }) {
+  return (
+    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
+      <RecordHeader navigation={navigation} title="Activity Record" />
+      <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+        {ACTIVITY_GROUPS.map((group) => (
+          <View key={group.date} style={styles.dateGroup}>
+            <Text style={styles.dateHeading}>{group.date}</Text>
+            {group.records.map((record) => (
+              <Pressable key={record.title} accessibilityRole="button" accessibilityLabel={record.title} style={styles.recordListCard} onPress={() => navigation.navigate("ProgramRecordApp", { programTitle: record.title })}>
+                <Image source={record.image} style={styles.recordListImage} resizeMode="cover" />
+                <View style={styles.recordListCopy}>
+                  <Text style={styles.recordListTitle} numberOfLines={1}>{record.title}</Text>
+                  <View style={styles.recordListMetaLine}>
+                    <Meta icon="file-text">{record.count} Records</Meta>
+                    <Text style={[styles.patternBadge, { backgroundColor: record.badgeColor }]}>{record.badge}</Text>
+                  </View>
+                  <Meta icon="map-pin">{record.centre}</Meta>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        ))}
+      </ScrollView>
+    </SafeAreaView>
+  )
+}
+
 export function ProgramRecordScreen({ navigation, route }: { navigation: any; route: { params: { programTitle: string } } }) {
   const title = route.params.programTitle
+  const activityRecord = [...ACTIVITY_GROUPS[0].records, ...ACTIVITY_GROUPS[1].records].find((record) => record.title === title)
   return (
     <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
       <RecordHeader navigation={navigation} title="Program Record" />
       <ScrollView contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
-        <Image source={GUITAR_IMAGE} style={styles.heroImage} resizeMode="cover" />
+        <Image source={PROGRAM_IMAGES[title] || GUITAR_IMAGE} style={styles.heroImage} resizeMode="cover" />
         <Text style={styles.heroTitle}>{title}</Text>
         <View style={styles.programMeta}>
-          <Meta icon="file-text">2 Records</Meta>
-          <Text style={[styles.patternBadge, styles.warmBadge]}>Consistent pattern</Text>
+          <Meta icon="file-text">{activityRecord?.count ?? 2} Records</Meta>
+          <Text style={[styles.patternBadge, { backgroundColor: activityRecord?.badgeColor ?? "#FFF7DF" }]}>{activityRecord?.badge ?? "Consistent pattern"}</Text>
         </View>
-        <Meta icon="map-pin">Bright Kids Playgroup Centre</Meta>
+        <Meta icon="map-pin">{activityRecord?.centre ?? "Bright Kids Playgroup Centre"}</Meta>
         <Text style={styles.hostLabel}>Hosted by</Text>
         <Host />
         <ProgressChart />
@@ -155,7 +220,7 @@ export function ProgramRecordScreen({ navigation, route }: { navigation: any; ro
         </SectionCard>
 
         <SectionCard>
-          <View style={styles.noteCardHeading}><Text style={styles.sectionTitle}>What Seems to Help</Text><SvgXml xml={ANALYTICS_NOTE_SVGS.help} width={42} height={42} /></View>
+          <View style={styles.noteCardHeading}><Text style={styles.sectionTitle}>What Seems to Help</Text><Image source={NOTE_HELP} style={styles.noteArt} resizeMode="contain" /></View>
           <NoteBlock title="Short verbal prompts" body="Brief verbal prompts have helped Charlie refocus on the rhythm and continue practising without needing the whole exercise demonstrated again." />
           <NoteBlock title="Current Focus" body="Maintaining rhythm through chord transitions\nThe current focus is helping Charlie change between chords smoothly while keeping a steady beat." last />
         </SectionCard>
@@ -163,7 +228,7 @@ export function ProgramRecordScreen({ navigation, route }: { navigation: any; ro
         <Text style={styles.sectionHeading}>Recent Records</Text>
         {["8th lesson", "7th lesson", "6th lesson"].map((lesson) => (
           <Pressable key={lesson} accessibilityRole="button" style={styles.recentCard} onPress={() => navigation.navigate("ClassRecordApp", { programTitle: title, lesson })}>
-            <Text style={styles.recentTitle}>Guitar Program</Text>
+            <Text style={styles.recentTitle}>{title}</Text>
             <View style={styles.recentMeta}>
               <Meta icon="calendar">{lesson}</Meta>
               <Meta icon="calendar">12 May (Fri)</Meta>
@@ -183,11 +248,11 @@ export function ClassRecordScreen({ navigation, route }: { navigation: any; rout
     <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
       <RecordHeader navigation={navigation} title="Class Record" />
       <ScrollView contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
-        <Image source={GUITAR_IMAGE} style={styles.heroImage} resizeMode="cover" />
+        <Image source={PROGRAM_IMAGES[route.params.programTitle] || GUITAR_IMAGE} style={styles.heroImage} resizeMode="cover" />
         <Text style={styles.heroTitle}>{route.params.programTitle}</Text>
         <Meta icon="calendar">{route.params.lesson}</Meta>
         <View style={styles.classMetaRow}><Meta icon="calendar">12 May (Fri)</Meta><Meta icon="clock">4:00PM–5:00PM</Meta></View>
-        <Meta icon="map-pin">Bright Kids Playgroup Centre</Meta>
+        <Meta icon="map-pin">Bright Kidz Playgroup Centre</Meta>
 
         <Text style={styles.sectionHeading}>Feedback by</Text>
         <Host compact />
@@ -199,7 +264,7 @@ export function ClassRecordScreen({ navigation, route }: { navigation: any; rout
         </SectionCard>
 
         <SectionCard>
-          <View style={styles.noteCardHeading}><Text style={styles.sectionTitle}>What We Observed</Text><SvgXml xml={ANALYTICS_NOTE_SVGS.observed} width={42} height={42} /></View>
+          <View style={styles.noteCardHeading}><Text style={styles.sectionTitle}>What We Observed</Text><Image source={NOTE_OBSERVED} style={styles.noteArt} resizeMode="contain" /></View>
           <NoteBlock title="" body="During rhythm practice, Charlie paused when changing between chords and needed some guidance to keep the beat. After one verbal prompt, he was able to continue the exercise." />
           <NoteBlock title="Support Need Today" body="Charlie needed some guidance to maintain the rhythm while moving between unfamiliar chord changes." />
           <NoteBlock title="What Helped" body="A short verbal prompt helped Charlie continue the exercise." />
@@ -207,15 +272,39 @@ export function ClassRecordScreen({ navigation, route }: { navigation: any; rout
         </SectionCard>
 
         <SectionCard>
-          <View style={styles.noteCardHeading}><Text style={styles.sectionTitle}>Coach’s Note</Text><SvgXml xml={ANALYTICS_NOTE_SVGS.coachNote} width={42} height={42} /></View>
+          <View style={styles.noteCardHeading}><Text style={styles.sectionTitle}>Coach’s Note</Text><Image source={NOTE_COACH} style={styles.noteArt} resizeMode="contain" /></View>
           <Text style={styles.noteBody}>Keep it up! Charlie is doing exceptional. Great work! Would suggest Charlie to read more Chinese books in leisure time.</Text>
         </SectionCard>
 
-        <Text style={styles.sectionHeading}>Work Sample</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Open Work Samples" onPress={() => navigation.navigate("WorkSamplesApp")}>
-          <Image source={WORK_SAMPLE_IMAGE} style={styles.samplePreview} resizeMode="cover" />
+        <Text style={styles.sectionHeading}>Moment</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Open Moments" onPress={() => navigation.navigate("MomentsApp")}>
+          <Image source={MOMENT_GUITAR} style={styles.samplePreview} resizeMode="cover" />
         </Pressable>
       </ScrollView>
+    </SafeAreaView>
+  )
+}
+
+export function MomentsScreen({ navigation }: { navigation: any }) {
+  const [selected, setSelected] = useState<number | null>(null)
+  return (
+    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
+      <RecordHeader navigation={navigation} title="Moments" />
+      <ScrollView contentContainerStyle={styles.samplesContent} showsVerticalScrollIndicator={false}>
+        {MOMENTS.map((moment, index) => (
+          <Pressable key={moment.title} accessibilityRole="button" accessibilityLabel={`View ${moment.title} moment`} style={styles.sampleItem} onPress={() => setSelected(index)}>
+            <Image source={moment.image} style={styles.sampleImage} resizeMode="cover" />
+            <Text style={styles.sampleTitle}>{moment.title}</Text>
+            <View style={styles.sampleMeta}><Text style={styles.sampleDate}>12 Apr 2026</Text><Image source={CENTRE_IMAGE} style={styles.sampleCentreLogo} /><Text style={styles.sampleCentreName} numberOfLines={1}>ClassZ Playgroup Bright Kids Drawing Centre</Text></View>
+          </Pressable>
+        ))}
+      </ScrollView>
+      <Modal visible={selected !== null} animationType="fade" transparent onRequestClose={() => setSelected(null)}>
+        <View style={styles.previewOverlay}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close moment" style={styles.previewClose} onPress={() => setSelected(null)}><Feather name="x" size={22} color="#222222" /></Pressable>
+          {selected !== null ? <Image source={MOMENTS[selected].image} style={styles.fullSample} resizeMode="contain" /> : null}
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -263,7 +352,7 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: "row", alignItems: "center", gap: 4, minWidth: 0 },
   metaText: { fontSize: FONT.caption, color: "#5E5E5E", flexShrink: 1 },
   detailContent: { width: "100%", maxWidth: 520, alignSelf: "center", paddingHorizontal: 16, paddingBottom: 40, gap: 10 },
-  heroImage: { width: "100%", aspectRatio: 1.64, borderRadius: 9 },
+  heroImage: { width: "100%", maxWidth: 343, aspectRatio: 343 / 213, alignSelf: "center", borderRadius: 9 },
   heroTitle: { fontSize: FONT.heading, fontWeight: "700", color: "#222222", textAlign: "center", marginTop: 4 },
   programMeta: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   hostLabel: { marginTop: 10, fontSize: FONT.body, fontWeight: "700", color: "#222222" },
@@ -280,6 +369,7 @@ const styles = StyleSheet.create({
   chartBottomAxis: { alignSelf: "center", marginTop: -9, fontSize: FONT.micro, color: "#667078" },
   sectionCard: { padding: 16, borderRadius: 8, backgroundColor: "#FFFFFF", shadowColor: "#000000", shadowOpacity: 0.1, shadowOffset: { width: 0, height: 3 }, shadowRadius: 9, elevation: 3 },
   noteCardHeading: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  noteArt: { width: 42, height: 42 },
   sectionTitle: { fontSize: FONT.headline, fontWeight: "600", color: "#222222" },
   noteBlock: { paddingVertical: 15, gap: 7 },
   noteDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#E2E2E2" },
