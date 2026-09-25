@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { StatusBar } from "expo-status-bar"
+import { Asset } from "expo-asset"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { jwtDecode } from "jwt-decode"
 import { NavigationContainer } from "@react-navigation/native"
@@ -7,7 +8,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack"
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs"
 import Feather from "@expo/vector-icons/Feather"
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons"
-import { SvgXml } from "react-native-svg"
+import { Path, Svg, SvgXml } from "react-native-svg"
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context"
 import { GestureHandlerRootView, Swipeable } from "react-native-gesture-handler"
 import {
@@ -43,6 +44,9 @@ import { createInitialFlowAppState, FlowApplicationSurface, type FlowAppState } 
 import { HOME_BANNER, HOME_PASSPORT_IMAGE, HOME_RECOMMEND_IMAGES, HOME_TRENDING_IMAGES, NAV_ICONS, SEARCH_BANNER_CENTRE, SEARCH_BANNER_PARENT, SEARCH_CATEGORY_COLORS, SEARCH_CATEGORY_IMAGES } from "./src/home-assets"
 import { HOME_CATEGORY_SVGS } from "./src/home-category-svgs"
 import { HOME_HEADER_SVGS } from "./src/home-header-svgs"
+import { ANALYTICS_SVGS } from "./src/analytics-svgs"
+import { AcademicRecordScreen, ClassRecordScreen, ProgramRecordScreen, WorkSamplesScreen } from "./src/analytics-record-screens"
+import { LearningCompanionScreen } from "./src/learning-companion"
 import {
   AuthLandingScreen,
   ForgotPasswordScreen,
@@ -97,6 +101,10 @@ type RootStackParamList = {
   PromoteCodeApp: undefined
   PersonalSettingApp: undefined
   ChangePasswordApp: undefined
+  LanguageApp: undefined
+  EnrollmentTermsApp: undefined
+  ContactUsApp: undefined
+  ContactThanksApp: undefined
   ChildProfileApp: undefined
   ChildDetailsApp: { childId: string }
   AddChildProfileApp: undefined
@@ -107,6 +115,12 @@ type RootStackParamList = {
   ScheduleClassDetailApp: ScheduleClassDetailRouteParams
   VerificationCodeApp: ScheduleClassDetailRouteParams
   AttendanceConfirmedApp: ScheduleClassDetailRouteParams
+  AcademicDashboardApp: undefined
+  ActivityDashboardApp: undefined
+  AcademicRecordApp: undefined
+  ProgramRecordApp: { programTitle: string }
+  ClassRecordApp: { programTitle: string; lesson: string }
+  WorkSamplesApp: undefined
   LearningRecordsApp: undefined
   CompanionApp: undefined
   InboxApp: undefined
@@ -128,6 +142,10 @@ type TabsParamList = {
 
 const SESSION_KEY = "classz_mobile_session"
 const LOCALE_KEY = "classz_mobile_locale"
+const PROFILE_FEATURE_ICONS = {
+  childProfile: require("./assets/figma/profile/child-profile.png"),
+  favourite: require("./assets/figma/profile/favourite.png"),
+}
 const Stack = createNativeStackNavigator<RootStackParamList>()
 const Tab = createBottomTabNavigator<TabsParamList>()
 
@@ -2572,35 +2590,251 @@ function AttendanceConfirmedScreen({
   )
 }
 
-function AnalyticsTabScreen({ navigation, flowAppState }: { navigation: any; flowAppState: FlowAppState }) {
-  const selectedStudent = flowAppState.students.find((s) => s.id === flowAppState.selectedStudentId) || flowAppState.students[0]
-  const count = flowAppState.learningRecords[selectedStudent.id] || 0
+function PassportWordmark() {
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
-      <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
-        <Text style={styles.pageTitle}>Analytics</Text>
-        <View style={styles.kpiRow}>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiValue}>{count}</Text>
-            <Text style={styles.kpiLabel}>Records for selected child</Text>
-          </View>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiValue}>{Object.keys(flowAppState.generatedCompanions).length}</Text>
-            <Text style={styles.kpiLabel}>Companion reports</Text>
-          </View>
+    <Text style={styles.analyticsWordmark}>
+      <Text style={styles.analyticsWordmarkZ}>z</Text>.passport
+    </Text>
+  )
+}
+
+function AnalyticsChildIdentity({ flowAppState, showLevel }: { flowAppState: FlowAppState; showLevel: boolean }) {
+  const selectedStudent = flowAppState.students.find((student) => student.id === flowAppState.selectedStudentId) || flowAppState.students[0]
+  const child = BOOKING_CHILDREN.find((item) => item.id === selectedStudent.id) || BOOKING_CHILDREN[0]
+  return (
+    <View style={styles.analyticsChildIdentity}>
+      <Image source={{ uri: child.image }} style={styles.analyticsChildAvatar} resizeMode="cover" />
+      <View style={styles.analyticsChildCopy}>
+        <Text style={styles.analyticsChildName}>{selectedStudent.name}</Text>
+        <View style={styles.analyticsChildMetaRow}>
+          <MaterialCommunityIcons name="gender-male" size={14} color="#0ABAB5" />
+          <Text style={styles.analyticsChildMeta}>Age {child.age}</Text>
+          {showLevel ? (
+            <View style={styles.analyticsLevelBadge}>
+              <Text style={styles.analyticsLevelText}>{child.level}</Text>
+            </View>
+          ) : null}
         </View>
-        <View style={styles.card}>
-          <Image source={{ uri: FIGMA_ASSETS.main.recommend1 }} style={styles.appCardImage} />
-          <Text style={styles.cardTitle}>Learning Record</Text>
-          <Text style={styles.cardMeta}>{selectedStudent.name}: {count}/3 records</Text>
-          <Pressable style={[styles.secondaryButton, { marginTop: 10 }]} onPress={() => navigation.navigate("LearningRecordsApp")}>
-            <Text style={styles.secondaryButtonText}>Open Learning Records</Text>
-          </Pressable>
-          <Pressable style={[styles.secondaryButton, { marginTop: 10 }]} onPress={() => navigation.navigate("CompanionApp")}>
-            <Text style={styles.secondaryButtonText}>Open Learning Companion</Text>
-          </Pressable>
+      </View>
+    </View>
+  )
+}
+
+function AnalyticsBottomNavigation({ navigation }: { navigation: any }) {
+  return (
+    <View style={styles.analyticsBottomNav}>
+      {(["Home", "Search", "Calendar", "Analytics"] as const).map((screen) => (
+        <Pressable
+          key={screen}
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${screen}`}
+          style={styles.favouriteBottomNavItem}
+          onPress={() => navigation.navigate("AppTabs", { screen })}
+        >
+          <Image
+            source={NAV_ICONS[screen]}
+            style={[styles.realTabIcon, { tintColor: screen === "Analytics" ? "#0ABAB5" : "#9A9A9A" }]}
+          />
+        </Pressable>
+      ))}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Open Profile"
+        style={styles.favouriteBottomNavItem}
+        onPress={() => navigation.navigate("AppTabs", { screen: "Profile" })}
+      >
+        <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.profileTabAvatar} resizeMode="cover" />
+      </Pressable>
+    </View>
+  )
+}
+
+function AnalyticsTabScreen({
+  navigation,
+  flowAppState,
+}: {
+  navigation: any
+  flowAppState: FlowAppState
+}) {
+  const selectedStudent = flowAppState.students.find((student) => student.id === flowAppState.selectedStudentId) || flowAppState.students[0]
+  const selectedChild = BOOKING_CHILDREN.find((child) => child.id === selectedStudent.id) || BOOKING_CHILDREN[0]
+
+  const passportCards = [
+    {
+      title: "Activity Growth Record",
+      description: "For activity, enrichment, skill-based learning",
+      icon: "lightning-bolt-outline" as const,
+      onPress: () => navigation.navigate("ActivityDashboardApp"),
+    },
+    {
+      title: "Academic Learning Record",
+      description: "For academic, tuition, subject-based learning",
+      icon: "school-outline" as const,
+      onPress: () => navigation.navigate("AcademicDashboardApp"),
+    },
+    {
+      title: "Learning Companion",
+      description: "Reflects your child’s recent learning style",
+      icon: "star-outline" as const,
+      onPress: () => navigation.navigate("CompanionApp"),
+    },
+  ]
+
+  return (
+    <SafeAreaView style={styles.analyticsScreen} edges={["top"]}>
+      <ScrollView style={styles.page} contentContainerStyle={styles.analyticsPassportContent} showsVerticalScrollIndicator={false}>
+        <View pointerEvents="none" style={styles.analyticsWatermarkWrap}>
+          <Svg width="100%" height="100%" viewBox="0 0 390 760" preserveAspectRatio="xMidYMin slice">
+            <Path
+              d="M354 65 C331 61 319 80 330 103 C366 177 361 222 325 260 C295 291 234 308 192 339 C116 394 103 488 16 528 L-32 548 L-32 668 C59 647 115 600 142 525 C171 445 184 405 265 365 C339 328 385 302 408 245 L408 85 C391 76 371 68 354 65 Z"
+              fill="#EFFBFC"
+            />
+            <Path
+              d="M401 541 C346 507 302 520 279 562 C252 609 270 687 307 759 L419 759 Z"
+              fill="#EFFBFC"
+            />
+          </Svg>
+        </View>
+        <PassportWordmark />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Switch child"
+          style={styles.analyticsPassportChild}
+          onPress={() => navigation.navigate("SelectChildApp")}
+        >
+          <Image source={{ uri: selectedChild.image }} style={styles.analyticsPassportAvatar} resizeMode="cover" />
+          <View style={styles.analyticsPassportNameRow}>
+            <Text style={styles.analyticsPassportName}>{selectedStudent.name}</Text>
+            <Feather name="chevron-down" size={15} color="#333333" />
+          </View>
+          <View style={styles.analyticsPassportMetaRow}>
+            <MaterialCommunityIcons name="gender-male" size={14} color="#0ABAB5" />
+            <Text style={styles.analyticsPassportMeta}>Age {selectedChild.age}</Text>
+            <View style={styles.analyticsLevelBadge}>
+              <Text style={styles.analyticsLevelText}>{selectedChild.level}</Text>
+            </View>
+          </View>
+        </Pressable>
+
+        <View style={styles.analyticsPassportCards}>
+          {passportCards.map((card, index) => (
+            <Pressable
+              key={card.title}
+              accessibilityRole="button"
+              style={[styles.analyticsPassportCard, index === 2 && styles.analyticsPassportCardLast]}
+              onPress={card.onPress}
+            >
+              <View style={styles.analyticsPassportCardTitleRow}>
+                <MaterialCommunityIcons name={card.icon} size={22} color="#0ABAB5" />
+                <Text style={styles.analyticsPassportCardTitle}>{card.title}</Text>
+              </View>
+              <View style={styles.analyticsPassportCardDivider} />
+              <View style={[styles.analyticsPassportCardFooter, index === 2 && styles.analyticsPassportCardFooterLast]}>
+                <Text style={styles.analyticsPassportCardDescription}>{card.description}</Text>
+                <Feather
+                  name="arrow-right"
+                  size={16}
+                  color="#0ABAB5"
+                  style={index === 2 ? styles.analyticsPassportLastArrow : undefined}
+                />
+              </View>
+            </Pressable>
+          ))}
         </View>
       </ScrollView>
+    </SafeAreaView>
+  )
+}
+
+type AnalyticsDashboardMode = "academic" | "activity"
+
+function AnalyticsDashboardScreen({
+  navigation,
+  flowAppState,
+  mode,
+}: {
+  navigation: any
+  flowAppState: FlowAppState
+  mode: AnalyticsDashboardMode
+}) {
+  const isAcademic = mode === "academic"
+  const records = isAcademic ? 32 : 12
+  const enrolled = isAcademic ? 32 : 14
+  const title = isAcademic ? "Academic Learning Record" : "Activity Learning Record"
+  const recordTitle = isAcademic ? "Learning Record" : "Activity Record"
+  const className = isAcademic ? "S3 Maths Class" : "ClassZ Guitar Program"
+  const actionTitle = isAcademic ? "Work Samples" : "Moments"
+  const dates = ["Updated 12 May 2025", "Updated 11 May 2025", "Updated 09 May 2025"]
+
+  return (
+    <SafeAreaView style={styles.analyticsScreen} edges={["top", "bottom"]}>
+      <View style={styles.analyticsDashboardHeader}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" style={styles.analyticsDashboardBack} onPress={() => navigation.goBack()}>
+          <Feather name="chevron-left" size={22} color="#858585" />
+        </Pressable>
+        <Text style={styles.analyticsDashboardHeaderTitle}>{title}</Text>
+        <View style={styles.analyticsDashboardHeaderSpacer} />
+      </View>
+
+      <ScrollView style={styles.page} contentContainerStyle={styles.analyticsDashboardContent} showsVerticalScrollIndicator={false}>
+        <AnalyticsChildIdentity flowAppState={flowAppState} showLevel={isAcademic} />
+
+        <View style={styles.analyticsSnapshotCard}>
+          <View style={styles.analyticsSnapshotTitleRow}>
+            <Text style={styles.analyticsSnapshotTitle}>Activity Snapshot</Text>
+            <Text style={styles.analyticsSnapshotLink}>Early observations</Text>
+          </View>
+          <View style={styles.analyticsSnapshotBody}>
+            <Text style={styles.analyticsSnapshotText}>
+              Across recent activity records, your child often showed strength in <Text style={styles.analyticsSnapshotBold}>Focus / Persistence</Text> and <Text style={styles.analyticsSnapshotBold}>Creativity</Text>, while coaches suggested focusing more on <Text style={styles.analyticsSnapshotBold}>Technique / Control</Text> and <Text style={styles.analyticsSnapshotBold}>Confidence to Try</Text>.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.analyticsMetricRow}>
+          <View style={styles.analyticsMetricCard}>
+            <View style={styles.analyticsMetricTitleRow}>
+              <SvgXml xml={ANALYTICS_SVGS.clipboardCheck} width={24} height={24} />
+              <Text style={styles.analyticsMetricTitle}>{isAcademic ? "Academic\nrecords" : "Activity\nrecords"}</Text>
+            </View>
+            <View style={styles.analyticsMetricValueRow}>
+              <Text style={styles.analyticsMetricValue}>{records}</Text>
+              <Text style={styles.analyticsMetricUnit}>records</Text>
+            </View>
+          </View>
+          <View style={styles.analyticsMetricCard}>
+            <View style={styles.analyticsMetricTitleRow}>
+              <SvgXml xml={ANALYTICS_SVGS.clipboardText} width={24} height={24} />
+              <Text style={styles.analyticsMetricTitle}>{isAcademic ? "Enrolled\nClasses" : "Enrolled\nProgrammes"}</Text>
+            </View>
+            <View style={styles.analyticsMetricValueRow}>
+              <Text style={styles.analyticsMetricValue}>{enrolled}</Text>
+              <Text style={styles.analyticsMetricUnit}>records</Text>
+            </View>
+          </View>
+        </View>
+
+        <Pressable accessibilityRole="button" style={styles.analyticsRecordCard} onPress={() => navigation.navigate(isAcademic ? "AcademicRecordApp" : "LearningRecordsApp")}>
+          <Text style={styles.analyticsRecordTitle}>{recordTitle}</Text>
+          <View style={styles.analyticsRecordDivider} />
+          {dates.map((date) => (
+            <View key={date} style={styles.analyticsRecordRow}>
+              <View style={styles.analyticsRecordNameRow}>
+                <View style={styles.analyticsRecordDot} />
+                <Text style={styles.analyticsRecordName}>{className}</Text>
+              </View>
+              <Text style={styles.analyticsRecordDate}>{date}</Text>
+            </View>
+          ))}
+        </Pressable>
+
+        <Pressable accessibilityRole="button" style={styles.analyticsActionCard} onPress={() => navigation.navigate(isAcademic ? "WorkSamplesApp" : "LearningRecordsApp")}>
+          <SvgXml xml={isAcademic ? ANALYTICS_SVGS.workSamples : ANALYTICS_SVGS.moments} width={24} height={24} />
+          <Text style={styles.analyticsActionTitle}>{actionTitle}</Text>
+        </Pressable>
+      </ScrollView>
+
+      <AnalyticsBottomNavigation navigation={navigation} />
     </SafeAreaView>
   )
 }
@@ -2643,7 +2877,8 @@ function ProfileScreen({
             <View>
               <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.profileMainAvatar} resizeMode="cover" />
               <View style={styles.profileAvatarEdit}>
-                <Feather name="user" size={13} color="#FFFFFF" />
+                <MaterialCommunityIcons name="lead-pencil" size={15} color="#FFFFFF" />
+                <View style={styles.profileAvatarEditLine} />
               </View>
             </View>
             <Text style={styles.profileMainName}>{profileName}</Text>
@@ -2670,13 +2905,13 @@ function ProfileScreen({
         <View style={styles.profileFeatureRow}>
           <Pressable style={styles.profileFeatureCard} onPress={() => navigation.navigate("ChildProfileApp")}>
             <View style={styles.profileFeatureIcon}>
-              <MaterialCommunityIcons name="notebook-edit-outline" size={56} color="#6475E9" />
+              <Image source={PROFILE_FEATURE_ICONS.childProfile} style={styles.profileFeatureImage} resizeMode="contain" />
             </View>
             <Text style={styles.profileFeatureTitle}>Child profile</Text>
           </Pressable>
           <Pressable style={styles.profileFeatureCard} onPress={() => navigation.navigate("FavouriteApp")}>
             <View style={styles.profileFeatureIcon}>
-              <MaterialCommunityIcons name="heart" size={62} color="#F24FA0" />
+              <Image source={PROFILE_FEATURE_ICONS.favourite} style={styles.profileFeatureImage} resizeMode="contain" />
             </View>
             <Text style={styles.profileFeatureTitle}>Favourite</Text>
           </Pressable>
@@ -2684,7 +2919,7 @@ function ProfileScreen({
 
         <Text style={styles.profileSettingsTitle}>Advance Settings</Text>
         <View style={styles.profileSettingsList}>
-          <Pressable style={styles.profileSettingRow}>
+          <Pressable style={styles.profileSettingRow} onPress={() => navigation.navigate("LanguageApp")}>
             <View style={styles.profileSettingLabelRow}>
               <Feather name="globe" size={17} color="#666666" />
               <Text style={styles.profileSettingLabel}>Language</Text>
@@ -2698,14 +2933,14 @@ function ProfileScreen({
             </View>
             <Feather name="chevron-right" size={20} color="#777777" />
           </Pressable>
-          <Pressable style={styles.profileSettingRow}>
+          <Pressable style={styles.profileSettingRow} onPress={() => navigation.navigate("EnrollmentTermsApp")}>
             <View style={styles.profileSettingLabelRow}>
               <Feather name="file-text" size={17} color="#666666" />
               <Text style={styles.profileSettingLabel}>Terms &amp; Conditions</Text>
             </View>
             <Feather name="chevron-right" size={20} color="#777777" />
           </Pressable>
-          <Pressable style={styles.profileSettingRow}>
+          <Pressable style={styles.profileSettingRow} onPress={() => navigation.navigate("ContactUsApp")}>
             <View style={styles.profileSettingLabelRow}>
               <Feather name="help-circle" size={17} color="#666666" />
               <Text style={styles.profileSettingLabel}>Help centre</Text>
@@ -2867,6 +3102,212 @@ function ChangePasswordScreen({ navigation }: { navigation: any }) {
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
+    </SafeAreaView>
+  )
+}
+
+const ENROLLMENT_TERMS = [
+  {
+    title: "1. Definitions",
+    body: 'A "Platform" refers to the ClassZ internet class reservation platform provided by the Company. A "User" refers to any individual who uses the Platform to search, book, or cancel interest classes. A "Provider" refers to each freelance coach or registered centre offering interest classes through the Platform.',
+  },
+  {
+    title: "2. Platform Services",
+    body: "The Platform provides Users with an online service to search, book, and cancel interest classes at locations of their choice. Users may choose between freelance coaches or registered centres as their preferred Providers.",
+  },
+  {
+    title: "3. User Responsibility",
+    body: "Users are responsible for their choice of Class and location. Users must exercise due diligence in selecting a safe and appropriate location. Users must ensure the safety and suitability of the location for themselves or their children.",
+  },
+  {
+    title: "4. Provider Responsibility",
+    body: "Providers are responsible for ensuring the safety and suitability of the location for conducting Classes. Providers must comply with all applicable laws, regulations, and guidelines. Providers are responsible for maintaining necessary permits, licences, or approvals required to conduct Classes at a specific location.",
+  },
+  {
+    title: "5. Company’s Role",
+    body: "The Company acts solely as an intermediary connecting Users with Providers through the Platform. The Company does not own, operate, or control the locations where Classes are conducted. The Company does not endorse, guarantee, or warrant the accuracy, quality, or effectiveness of the Classes or the performance of the Providers.",
+  },
+  {
+    title: "6. Limitation of Liability",
+    body: "To the maximum extent permitted by law, the Company shall not be liable for injury, damage, loss, or inconvenience arising from a Class, a Provider, or the selected location. Users and Providers agree to indemnify and hold the Company harmless from claims arising from their use of the Platform.",
+  },
+  {
+    title: "7. Dispute Resolution",
+    body: "Any dispute arising from a Class should first be resolved through negotiation in good faith. If the dispute cannot be resolved, the parties agree to submit it to mediation or arbitration in Hong Kong.",
+  },
+  {
+    title: "8. Modifications to the Agreement",
+    body: "The Company reserves the right to modify or amend this Agreement at any time. Updated versions will be posted on the Platform. Continued use of the Platform after any modification constitutes acceptance of the modified terms.",
+  },
+  {
+    title: "9. Governing Law",
+    body: "This Agreement shall be governed by and construed in accordance with the laws of Hong Kong. By using the Platform, you acknowledge that you have read, understood, and agree to be bound by this Agreement.",
+  },
+] as const
+
+function LanguageScreen({
+  navigation,
+  locale,
+  onSelectLocale,
+}: {
+  navigation: any
+  locale: AppLocale
+  onSelectLocale: (locale: AppLocale) => Promise<void>
+}) {
+  const [selectedLocale, setSelectedLocale] = useState<AppLocale>(locale === "en" ? "en" : "zh-Hant")
+
+  return (
+    <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
+      <ProfileFlowHeader navigation={navigation} title="Language" />
+      <View style={styles.languageContent}>
+        <View style={styles.languageChooser}>
+          <Text style={styles.languagePrompt}>Choose your{"\n"}preferred language!</Text>
+          {([
+            { value: "en" as const, flag: "🇬🇧", label: "English" },
+            { value: "zh-Hant" as const, flag: "🇭🇰", label: "繁體中文" },
+          ]).map((option) => {
+            const selected = selectedLocale === option.value
+            return (
+              <Pressable
+                key={option.value}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: selected }}
+                style={styles.languageOption}
+                onPress={() => setSelectedLocale(option.value)}
+              >
+                <Text style={styles.languageFlag}>{option.flag}</Text>
+                <Text style={styles.languageLabel}>{option.label}</Text>
+                <Feather name={selected ? "check-square" : "square"} size={18} color={selected ? "#0ABAB5" : "#B8B8B8"} />
+              </Pressable>
+            )
+          })}
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          style={styles.languageSaveButton}
+          onPress={async () => {
+            await onSelectLocale(selectedLocale)
+            navigation.goBack()
+          }}
+        >
+          <Text style={styles.profileFlowPrimaryText}>Save</Text>
+        </Pressable>
+      </View>
+    </SafeAreaView>
+  )
+}
+
+function EnrollmentTermsScreen({ navigation }: { navigation: any }) {
+  return (
+    <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
+      <ProfileFlowHeader navigation={navigation} title="All Enrollment" />
+      <ScrollView style={styles.page} contentContainerStyle={styles.enrollmentTermsContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.enrollmentTermsHeading}>TERMS AND CONDITIONS</Text>
+        <Text style={styles.enrollmentTermsBody}>
+          These Terms and Conditions ("Agreement") govern your use of the ClassZ interest class reservation platform ("Platform") provided by the Company. By accessing or using the Platform, you agree to be bound by this Agreement. If you do not agree with these terms, please refrain from using the Platform.
+        </Text>
+        {ENROLLMENT_TERMS.map((section) => (
+          <View key={section.title} style={styles.enrollmentTermsSection}>
+            <Text style={styles.enrollmentTermsSectionTitle}>{section.title}</Text>
+            <Text style={styles.enrollmentTermsBody}>{section.body}</Text>
+          </View>
+        ))}
+        <Text style={styles.enrollmentTermsBody}>
+          ClassZ{"\n"}[Address]{"\n"}[City, State, ZIP]{"\n"}[Email Address]{"\n"}[Phone Number]{"\n"}[Website]
+        </Text>
+      </ScrollView>
+    </SafeAreaView>
+  )
+}
+
+function ContactUsScreen({ navigation }: { navigation: any }) {
+  const [fullName, setFullName] = useState("")
+  const [email, setEmail] = useState("")
+  const [thoughts, setThoughts] = useState("")
+
+  return (
+    <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
+      <ProfileFlowHeader navigation={navigation} title="Contact Us" />
+      <KeyboardAvoidingView style={styles.flex1} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView
+          style={styles.page}
+          contentContainerStyle={styles.contactContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.contactIntro}>We are here to help you!</Text>
+          <TextInput
+            style={styles.contactInput}
+            placeholder="Full name"
+            placeholderTextColor="#B5B5B5"
+            value={fullName}
+            onChangeText={setFullName}
+            autoCapitalize="words"
+          />
+          <TextInput
+            style={styles.contactInput}
+            placeholder="Email address"
+            placeholderTextColor="#B5B5B5"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+          <TextInput
+            style={styles.contactThoughtsInput}
+            placeholder="Tell us your thoughts"
+            placeholderTextColor="#B5B5B5"
+            value={thoughts}
+            onChangeText={setThoughts}
+            multiline
+            textAlignVertical="top"
+          />
+          <Pressable
+            accessibilityRole="button"
+            style={styles.contactSubmitButton}
+            onPress={() => navigation.navigate("ContactThanksApp")}
+          >
+            <Text style={styles.profileFlowPrimaryText}>Submit</Text>
+          </Pressable>
+
+          <View style={styles.contactDetails}>
+            <View style={styles.contactDetailRow}>
+              <View style={styles.contactDetailIcon}><Feather name="mail" size={14} color="#222222" /></View>
+              <Text style={styles.contactDetailText}>medialcs.classz@gmail.com</Text>
+            </View>
+            <View style={styles.contactDetailRow}>
+              <View style={styles.contactDetailIcon}><Feather name="phone" size={14} color="#222222" /></View>
+              <Text style={styles.contactDetailText}>+852 1234 5678</Text>
+            </View>
+            <View style={styles.contactDetailRow}>
+              <View style={styles.contactDetailIcon}><Feather name="clock" size={14} color="#222222" /></View>
+              <Text style={styles.contactDetailText}>Mon–Sun  08:00–19:00</Text>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  )
+}
+
+function ContactThanksScreen({ navigation }: { navigation: any }) {
+  return (
+    <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
+      <ProfileFlowHeader navigation={navigation} title="Contact Us" />
+      <View style={styles.contactThanksContent}>
+        <Text style={styles.contactThanksAccent}>We hear you!</Text>
+        <Text style={styles.contactThanksTitle}>Thanks for reaching out!</Text>
+        <Text style={styles.contactThanksText}>Please kindly check our response</Text>
+        <Pressable
+          accessibilityRole="button"
+          style={styles.contactThanksClose}
+          onPress={() => navigation.navigate("AppTabs", { screen: "Profile" })}
+        >
+          <Feather name="chevron-left" size={14} color="#777777" />
+          <Text style={styles.contactThanksCloseText}>Close</Text>
+        </Pressable>
+      </View>
     </SafeAreaView>
   )
 }
@@ -3607,9 +4048,9 @@ const BOOKING_CHILDREN = [
     connected: false,
     age: 6,
     sen: true,
-    image: FIGMA_ASSETS.reservation.program,
-    imageScale: 1.7,
-    imageOffsetY: 10,
+    image: Asset.fromModule(require("./assets/mobile/profile/joseph-avatar.png")).uri,
+    imageScale: 1,
+    imageOffsetY: 0,
   },
 ] as const
 
@@ -3873,63 +4314,6 @@ function LearningRecordsAppScreen({
         >
           <Text style={styles.primaryButtonText}>{canGenerate ? "Generate Learning Companion" : `Need ${3 - count} more records`}</Text>
         </Pressable>
-      </ScrollView>
-    </SafeAreaView>
-  )
-}
-
-function CompanionAppScreen({
-  flowAppState,
-  setFlowAppState,
-}: {
-  flowAppState: FlowAppState
-  setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
-}) {
-  const selected = flowAppState.students.find((s) => s.id === flowAppState.selectedStudentId) || flowAppState.students[0]
-  const current = flowAppState.generatedCompanions[selected.id] || "Rabbit"
-  const animals: Array<{ name: "Rabbit" | "Owl" | "Dolphin" | "Turtle" | "Fox" | "Bee"; key: CompanionAnimalKey }> = [
-    { name: "Rabbit", key: "rabbit" },
-    { name: "Owl", key: "owl" },
-    { name: "Dolphin", key: "dolphin" },
-    { name: "Turtle", key: "turtle" },
-    { name: "Fox", key: "fox" },
-    { name: "Bee", key: "bee" },
-  ]
-  const activeKey = animals.find((a) => a.name === current)?.key || "rabbit"
-  const poses = companionPosesFor(activeKey)
-  return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
-      <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
-        <Text style={styles.pageTitle}>Learning Companion</Text>
-        <View style={styles.card}>
-          <Image source={{ uri: companionZSirImage() }} style={styles.appCardImage} />
-          <Text style={styles.cardTitle}>{selected.name}</Text>
-          <Text style={styles.cardMeta}>Current companion: {current}</Text>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.filterRow}>
-            {animals.map((a) => (
-              <Pressable
-                key={a.name}
-                style={[styles.filterPill, current === a.name ? styles.filterPillActive : null]}
-                onPress={() =>
-                  setFlowAppState((prev) => ({
-                    ...prev,
-                    generatedCompanions: { ...prev.generatedCompanions, [selected.id]: a.name },
-                  }))
-                }
-              >
-                <Text style={styles.filterPillText}>{a.name}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </ScrollView>
-        {["What may help", "Why we think this", "Supporting companion", "Strategies and next step"].map((title, idx) => (
-          <View key={title} style={styles.card}>
-            <Image source={{ uri: poses[idx] }} style={styles.sectionArtImage} />
-            <Text style={styles.cardTitle}>{title}</Text>
-          </View>
-        ))}
       </ScrollView>
     </SafeAreaView>
   )
@@ -5026,6 +5410,11 @@ export default function App() {
     await AsyncStorage.setItem(LOCALE_KEY, next)
   }
 
+  async function selectLocale(next: AppLocale) {
+    setLocale(next)
+    await AsyncStorage.setItem(LOCALE_KEY, next)
+  }
+
   async function signIn(next: Session) {
     await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(next))
     setSession(next)
@@ -5147,6 +5536,18 @@ export default function App() {
             <Stack.Screen name="ChangePasswordApp" options={{ headerShown: false }}>
               {(props) => <ChangePasswordScreen {...props} />}
             </Stack.Screen>
+            <Stack.Screen name="LanguageApp" options={{ headerShown: false }}>
+              {(props) => <LanguageScreen {...props} locale={locale} onSelectLocale={selectLocale} />}
+            </Stack.Screen>
+            <Stack.Screen name="EnrollmentTermsApp" options={{ headerShown: false }}>
+              {(props) => <EnrollmentTermsScreen {...props} />}
+            </Stack.Screen>
+            <Stack.Screen name="ContactUsApp" options={{ headerShown: false }}>
+              {(props) => <ContactUsScreen {...props} />}
+            </Stack.Screen>
+            <Stack.Screen name="ContactThanksApp" options={{ headerShown: false }}>
+              {(props) => <ContactThanksScreen {...props} />}
+            </Stack.Screen>
             <Stack.Screen name="ChildProfileApp" options={{ headerShown: false }}>
               {(props) => <ChildProfileScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
@@ -5177,11 +5578,21 @@ export default function App() {
             <Stack.Screen name="AttendanceConfirmedApp" options={{ headerShown: false }}>
               {(props) => <AttendanceConfirmedScreen {...props} flowAppState={flowAppState} />}
             </Stack.Screen>
+            <Stack.Screen name="AcademicDashboardApp" options={{ headerShown: false }}>
+              {(props) => <AnalyticsDashboardScreen {...props} flowAppState={flowAppState} mode="academic" />}
+            </Stack.Screen>
+            <Stack.Screen name="ActivityDashboardApp" options={{ headerShown: false }}>
+              {(props) => <AnalyticsDashboardScreen {...props} flowAppState={flowAppState} mode="activity" />}
+            </Stack.Screen>
+            <Stack.Screen name="AcademicRecordApp" component={AcademicRecordScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="ProgramRecordApp" component={ProgramRecordScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="ClassRecordApp" component={ClassRecordScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="WorkSamplesApp" component={WorkSamplesScreen} options={{ headerShown: false }} />
             <Stack.Screen name="LearningRecordsApp" options={{ title: "Learning Records" }}>
               {(props) => <LearningRecordsAppScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
-            <Stack.Screen name="CompanionApp" options={{ title: "Learning Companion" }}>
-              {(props) => <CompanionAppScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
+            <Stack.Screen name="CompanionApp" options={{ headerShown: false }}>
+              {(props) => <LearningCompanionScreen {...props} childName={(flowAppState.students.find((student) => student.id === flowAppState.selectedStudentId) || flowAppState.students[0]).name} />}
             </Stack.Screen>
             <Stack.Screen name="InboxApp" options={{ title: tInbox(locale).title }}>
               {(props) => <InboxAppScreen {...props} locale={locale} />}
@@ -6443,6 +6854,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  profileAvatarEditLine: {
+    width: 13,
+    height: 1.5,
+    marginTop: -2,
+    borderRadius: 1,
+    backgroundColor: "#FFFFFF",
+  },
   profileMainName: { marginTop: 8, fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
   profileLocation: { marginTop: 3, fontSize: FONT.caption, color: "#8A8A8A" },
   profileStats: { flex: 1 },
@@ -6467,6 +6885,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   profileFeatureIcon: { flex: 1, alignItems: "center", justifyContent: "center" },
+  profileFeatureImage: { width: 112, height: 112 },
   profileFeatureTitle: { fontSize: FONT.headline, fontWeight: "600", color: "#333333" },
   profileSettingsTitle: { marginTop: 4, fontSize: FONT.headline, fontWeight: "700", color: "#222222" },
   profileSettingsList: { marginTop: -6 },
@@ -6566,6 +6985,106 @@ const styles = StyleSheet.create({
     color: "#222222",
     backgroundColor: "#FFFFFF",
   },
+  languageContent: {
+    width: "100%",
+    maxWidth: 520,
+    flex: 1,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingTop: 118,
+  },
+  languageChooser: { gap: 12 },
+  languagePrompt: { marginBottom: 10, fontSize: FONT.headline, lineHeight: 21, fontWeight: "500", color: "#222222", textAlign: "center" },
+  languageOption: {
+    minHeight: 50,
+    borderWidth: 1,
+    borderColor: "#E2E2E2",
+    borderRadius: 7,
+    paddingHorizontal: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#FFFFFF",
+  },
+  languageFlag: { fontSize: FONT.heading },
+  languageLabel: { flex: 1, fontSize: FONT.body, color: "#333333" },
+  languageSaveButton: {
+    minHeight: 48,
+    marginTop: 42,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#2A2A2A",
+  },
+  enrollmentTermsContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    gap: 14,
+  },
+  enrollmentTermsHeading: { fontSize: FONT.bodyLg, fontWeight: "700", color: "#222222" },
+  enrollmentTermsSection: { gap: 5 },
+  enrollmentTermsSectionTitle: { fontSize: FONT.body, fontWeight: "700", color: "#222222" },
+  enrollmentTermsBody: { fontSize: FONT.caption, lineHeight: 17, color: "#444444" },
+  contactContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 34,
+    gap: 14,
+  },
+  contactIntro: { marginBottom: 4, fontSize: FONT.bodyLg, fontWeight: "500", color: "#222222" },
+  contactInput: {
+    minHeight: 54,
+    borderWidth: 1,
+    borderColor: "#BEBEBE",
+    borderRadius: 7,
+    paddingHorizontal: 13,
+    fontSize: FONT.body,
+    color: "#222222",
+    backgroundColor: "#FFFFFF",
+  },
+  contactThoughtsInput: {
+    minHeight: 126,
+    borderWidth: 1,
+    borderColor: "#BEBEBE",
+    borderRadius: 7,
+    paddingHorizontal: 13,
+    paddingTop: 13,
+    paddingBottom: 13,
+    fontSize: FONT.body,
+    color: "#222222",
+    backgroundColor: "#FFFFFF",
+  },
+  contactSubmitButton: {
+    minHeight: 48,
+    marginTop: 50,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#2A2A2A",
+  },
+  contactDetails: { marginTop: 22, gap: 10 },
+  contactDetailRow: { flexDirection: "row", alignItems: "center", gap: 9 },
+  contactDetailIcon: {
+    width: 28,
+    height: 28,
+    borderWidth: 1,
+    borderColor: "#777777",
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  contactDetailText: { fontSize: FONT.caption, color: "#555555" },
+  contactThanksContent: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 28, paddingBottom: 80 },
+  contactThanksAccent: { fontSize: FONT.headline, fontWeight: "700", color: "#0ABAB5" },
+  contactThanksTitle: { marginTop: 10, fontSize: FONT.heading, fontWeight: "700", color: "#222222", textAlign: "center" },
+  contactThanksText: { marginTop: 7, fontSize: FONT.caption, color: "#A0A0A0", textAlign: "center" },
+  contactThanksClose: { marginTop: 18, flexDirection: "row", alignItems: "center", gap: 2 },
+  contactThanksCloseText: { fontSize: FONT.caption, color: "#777777", textDecorationLine: "underline" },
   childProfileContent: {
     width: "100%",
     maxWidth: 520,
@@ -7129,6 +7648,161 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   centreDetailProgramsButtonText: { fontSize: FONT.body, fontWeight: "600", color: "#FFFFFF" },
+  analyticsScreen: { flex: 1, backgroundColor: "#FFFFFF", overflow: "hidden" },
+  analyticsPassportContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 28,
+    gap: 20,
+  },
+  analyticsWordmark: { fontSize: 28, fontWeight: "700", color: "#222222" },
+  analyticsWordmarkZ: { color: "#0ABAB5" },
+  analyticsWatermarkWrap: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: 760,
+  },
+  analyticsPassportChild: { alignItems: "center", alignSelf: "center", gap: 4, paddingHorizontal: 16 },
+  analyticsPassportAvatar: { width: 176, height: 176, borderRadius: 88, backgroundColor: "#E5E7EB" },
+  analyticsPassportNameRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  analyticsPassportName: { fontSize: FONT.heading, fontWeight: "700", color: "#222222" },
+  analyticsPassportMetaRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  analyticsPassportMeta: { fontSize: FONT.secondary, color: "#777777" },
+  analyticsLevelBadge: { borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: "#DFF5F3" },
+  analyticsLevelText: { fontSize: FONT.caption, fontWeight: "600", color: "#5B6666" },
+  analyticsPassportCards: { gap: 20, marginTop: 12 },
+  analyticsPassportCard: {
+    minHeight: 100,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.09,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  analyticsPassportCardLast: { minHeight: 128 },
+  analyticsPassportCardTitleRow: { flexDirection: "row", alignItems: "center", gap: 9 },
+  analyticsPassportCardTitle: { flexShrink: 1, fontSize: FONT.headline, fontWeight: "500", color: "#222222" },
+  analyticsPassportCardDivider: { height: StyleSheet.hairlineWidth, marginTop: 7, marginLeft: 31, backgroundColor: "#777777" },
+  analyticsPassportCardFooter: { minHeight: 32, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 8 },
+  analyticsPassportCardFooterLast: { flex: 1, alignItems: "flex-start", paddingTop: 10 },
+  analyticsPassportLastArrow: { alignSelf: "flex-end" },
+  analyticsPassportCardDescription: { flex: 1, fontSize: FONT.caption, lineHeight: 16, color: "#777777" },
+  analyticsDashboardHeader: {
+    width: "100%",
+    maxWidth: 520,
+    minHeight: 62,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+  },
+  analyticsDashboardHeaderTitle: { flex: 1, fontSize: FONT.headerTitle, fontWeight: "500", color: "#222222", textAlign: "center" },
+  analyticsDashboardBack: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: "#F0F0F0" },
+  analyticsDashboardHeaderSpacer: { width: 38 },
+  analyticsDashboardContent: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    paddingHorizontal: 22,
+    paddingTop: 28,
+    paddingBottom: 20,
+    gap: 20,
+  },
+  analyticsChildIdentity: { minHeight: 88, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 24, paddingHorizontal: 10, paddingVertical: 2 },
+  analyticsChildAvatar: { width: 84, height: 84, borderRadius: 42, backgroundColor: "#E5E7EB" },
+  analyticsChildCopy: { flex: 1, gap: 8 },
+  analyticsChildName: { fontSize: FONT.heading, fontWeight: "600", color: "#222222" },
+  analyticsChildMetaRow: { flexDirection: "row", alignItems: "center", gap: 7 },
+  analyticsChildMeta: { fontSize: FONT.secondary, color: "#777777" },
+  analyticsSnapshotCard: {
+    minHeight: 155,
+    borderRadius: 8,
+    padding: 14,
+    gap: 10,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.09,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  analyticsSnapshotTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  analyticsSnapshotTitle: { fontSize: FONT.headline, fontWeight: "600", color: "#222222" },
+  analyticsSnapshotLink: { fontSize: FONT.caption, fontWeight: "500", color: "#0ABAB5" },
+  analyticsSnapshotBody: { flex: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#F4F4F4" },
+  analyticsSnapshotText: { fontSize: FONT.caption, lineHeight: 16, color: "#333333" },
+  analyticsSnapshotBold: { fontWeight: "700", color: "#222222" },
+  analyticsMetricRow: { flexDirection: "row", gap: 14 },
+  analyticsMetricCard: {
+    flex: 1,
+    minHeight: 127,
+    borderRadius: 8,
+    padding: 14,
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  analyticsMetricTitleRow: { flexDirection: "row", alignItems: "flex-start", gap: 9 },
+  analyticsMetricTitle: { flex: 1, fontSize: FONT.body, lineHeight: 18, fontWeight: "500", color: "#222222" },
+  analyticsMetricValueRow: { flexDirection: "row", alignItems: "baseline", gap: 6 },
+  analyticsMetricValue: { fontSize: FONT.heading, fontWeight: "600", color: "#222222" },
+  analyticsMetricUnit: { fontSize: FONT.secondary, color: "#333333" },
+  analyticsRecordCard: {
+    minHeight: 125,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  analyticsRecordTitle: { fontSize: FONT.headline, fontWeight: "500", color: "#222222" },
+  analyticsRecordDivider: { height: StyleSheet.hairlineWidth, marginTop: 8, marginBottom: 9, backgroundColor: "#BDBDBD" },
+  analyticsRecordRow: { minHeight: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  analyticsRecordNameRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
+  analyticsRecordDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: "#0ABAB5" },
+  analyticsRecordName: { flex: 1, fontSize: FONT.caption, color: "#222222" },
+  analyticsRecordDate: { fontSize: FONT.caption, color: "#222222" },
+  analyticsActionCard: {
+    minHeight: 79,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  analyticsActionTitle: { fontSize: FONT.headerTitle, fontWeight: "500", color: "#222222" },
+  analyticsBottomNav: {
+    height: 64,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#DADADA",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+  },
   kpiRow: { flexDirection: "row", gap: 10 },
   kpiCard: { flex: 1, borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff", padding: 12 },
   kpiValue: { fontSize: FONT.heading, fontWeight: "700", color: "#111827" },
