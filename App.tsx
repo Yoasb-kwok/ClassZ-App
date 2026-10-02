@@ -40,7 +40,10 @@ import {
 } from "./src/figma-flow"
 import { FIGMA_ASSETS } from "./src/figma-asset-urls"
 import { PAYMENT_ICONS } from "./src/payment-svgs"
-import { createInitialFlowAppState, FlowApplicationSurface, type FlowAppState } from "./src/flow-application"
+import { createInitialFlowAppState, FlowApplicationSurface, selectedStudentOf, type FlowAppState } from "./src/flow-application"
+import { API_BASE, apiRequest, errorMessage } from "./src/api"
+import { pickProfileImage } from "./src/pick-profile-image"
+import { AccountDataProvider, useAccountData } from "./src/account-data"
 import { HOME_BANNER, HOME_PASSPORT_IMAGE, HOME_RECOMMEND_IMAGES, HOME_TRENDING_IMAGES, NAV_ICONS, SEARCH_BANNER_CENTRE, SEARCH_BANNER_PARENT, SEARCH_CATEGORY_COLORS, SEARCH_CATEGORY_IMAGES } from "./src/home-assets"
 import { HOME_CATEGORY_SVGS } from "./src/home-category-svgs"
 import { HOME_HEADER_SVGS } from "./src/home-header-svgs"
@@ -145,6 +148,15 @@ type TabsParamList = {
 
 const SESSION_KEY = "classz_mobile_session"
 const LOCALE_KEY = "classz_mobile_locale"
+
+function isoFromBirthday(input: string): string | null {
+  const t = input.trim()
+  if (!t) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t
+  const dmy = t.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})$/)
+  if (!dmy) return null
+  return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`
+}
 const PROFILE_FEATURE_ICONS = {
   childProfile: require("./assets/figma/profile/child-profile.png"),
   favourite: require("./assets/figma/profile/favourite.png"),
@@ -300,12 +312,6 @@ const APP_TAB_BAR_STYLE = {
   elevation: 12,
 } as const
 
-const API_BASE = (() => {
-  const raw = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3003"
-  const stripped = raw.replace(/\/$/, "").replace(/\/api\/?$/, "")
-  return `${stripped}/api`
-})()
-
 function mapJwtRole(payload: { role?: string; is_admin?: number }): ClasszPortalRole {
   if (Number(payload.is_admin) === 1) return "platform_admin"
   const role = String(payload.role || "").toLowerCase()
@@ -344,20 +350,29 @@ async function apiLogin(loginIdentifier: string, password: string): Promise<Sess
   }
 }
 
+function firstNameOf(name: string) {
+  const trimmed = name.trim()
+  return trimmed.split(/\s+/)[0] || trimmed
+}
+
 function HomeScreen({
   navigation,
+  session,
   flowAppState,
   setFlowAppState,
   locale,
   onToggleLocale,
 }: {
   navigation: any
+  session: Session
   flowAppState: FlowAppState
   setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
   locale: AppLocale
   onToggleLocale: () => void
 }) {
   const t = tMain(locale)
+  const { account } = useAccountData()
+  const helloName = firstNameOf(account?.name || account?.full_name || session.user.name)
   const categories = ["Music", "Art", "STEM", "Academic"] as const
   const categoryLabel = (category: (typeof categories)[number]) => {
     if (category === "Music") return t.music
@@ -382,7 +397,7 @@ function HomeScreen({
           <View style={styles.profileHeader}>
             <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.profileAvatarSmall} />
             <View>
-              <Text style={styles.helloText}>{t.hello("Emily")}</Text>
+              <Text style={styles.helloText}>{t.hello(helloName)}</Text>
             </View>
           </View>
           <View style={styles.topHeaderActions}>
@@ -906,6 +921,10 @@ function SearchTabScreen({
   )
 }
 
+function programBelongsToCentre(program: FlowAppState["programs"][number], centre: FlowAppState["centres"][number]) {
+  return program.centreId ? program.centreId === centre.id : centre.categories.includes(program.category)
+}
+
 function CentreDetailScreen({
   navigation,
   flowAppState,
@@ -921,7 +940,7 @@ function CentreDetailScreen({
     || flowAppState.centres[0]
   const category = centre.categories[0] as keyof typeof SEARCH_CATEGORY_IMAGES
   const suggestedCentres = flowAppState.centres.filter((item) => item.id !== centre.id).slice(0, 3)
-  const relatedProgram = flowAppState.programs.find((program) => centre.categories.includes(program.category))
+  const relatedProgram = flowAppState.programs.find((program) => programBelongsToCentre(program, centre))
   const services = [
     { icon: "shield-check-outline", title: "SEN-inclusive", description: "SEN-friendly facilities and teaching for children with different learning needs." },
     { icon: "account-group-outline", title: "Small Class Size", description: "Smaller class groups for more focused attention and interaction." },
@@ -1111,7 +1130,7 @@ function ProgramListScreen({
 }) {
   const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId)
     || flowAppState.centres[0]
-  const programs = flowAppState.programs.filter((program) => centre.categories.includes(program.category))
+  const programs = flowAppState.programs.filter((program) => programBelongsToCentre(program, centre))
   const scheduleCounts = ["10+ schedules", "8+ schedules", "10+ schedules"]
   const programCards = programs.flatMap((program) => scheduleCounts.map((schedules, index) => ({
     key: `${program.id}-${index}`,
@@ -2985,7 +3004,10 @@ function ProfileScreen({
   onSignOut: () => Promise<void>
   flowAppState: FlowAppState
 }) {
-  const profileName = "Emily Chan"
+  const { account, enrollments, trials } = useAccountData()
+  const profileName = account?.name || account?.full_name || session.user.name
+  const childrenCount = flowAppState.students.length
+  const bookingsCount = enrollments.length + trials.length
 
   return (
     <SafeAreaView style={styles.profileScreen} edges={["top"]}>
@@ -3021,17 +3043,17 @@ function ProfileScreen({
           </View>
           <View style={styles.profileStats}>
             <View style={styles.profileStat}>
-              <Text style={styles.profileStatValue}>2</Text>
+              <Text style={styles.profileStatValue}>{childrenCount}</Text>
               <Text style={styles.profileStatLabel}>Children</Text>
             </View>
             <View style={styles.profileStatDivider} />
             <View style={styles.profileStat}>
-              <Text style={styles.profileStatValue}>{Math.max(38, flowAppState.bookings.length)}</Text>
+              <Text style={styles.profileStatValue}>{bookingsCount}</Text>
               <Text style={styles.profileStatLabel}>Bookings</Text>
             </View>
             <View style={styles.profileStatDivider} />
             <View style={styles.profileStat}>
-              <Text style={styles.profileStatValue}>3</Text>
+              <Text style={styles.profileStatValue}>—</Text>
               <Text style={styles.profileStatLabel}>Years on ClassZ</Text>
             </View>
           </View>
@@ -3107,10 +3129,50 @@ function ProfileFlowHeader({ navigation, title }: { navigation: any; title: stri
   )
 }
 
-function PersonalSettingScreen({ navigation, session }: { navigation: any; session: Session }) {
-  const [fullName, setFullName] = useState("Emily Chan")
-  const [email, setEmail] = useState(session.user.email)
-  const [phone, setPhone] = useState("8888 8888")
+function PersonalSettingScreen({
+  navigation,
+  session,
+  onSessionChange,
+}: {
+  navigation: any
+  session: Session
+  onSessionChange: (next: Session) => Promise<void>
+}) {
+  const { account, refresh } = useAccountData()
+  const [fullName, setFullName] = useState(account?.name || account?.full_name || session.user.name)
+  const [email, setEmail] = useState(account?.email || session.user.email)
+  const [phone, setPhone] = useState(account?.mobile || "")
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (account?.name || account?.full_name) setFullName(account.name || account.full_name || "")
+    if (account?.email) setEmail(account.email)
+    if (account?.mobile) setPhone(account.mobile)
+  }, [account])
+
+  async function save() {
+    const name = fullName.trim()
+    if (!name) {
+      Alert.alert("Full name is required")
+      return
+    }
+    setSaving(true)
+    try {
+      await apiRequest("/student/account", {
+        token: session.token,
+        method: "PATCH",
+        body: { name, full_name: name, ...(phone.trim() ? { mobile: phone } : {}) },
+      })
+      await onSessionChange({ ...session, user: { ...session.user, name } })
+      await refresh()
+      Alert.alert("Saved", "Your personal settings have been updated.")
+      navigation.goBack()
+    } catch (err) {
+      Alert.alert("Save failed", errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
@@ -3144,7 +3206,7 @@ function PersonalSettingScreen({ navigation, session }: { navigation: any; sessi
               <TextInput
                 style={styles.personalVerifiedInput}
                 value={email}
-                onChangeText={setEmail}
+                editable={false}
                 autoCapitalize="none"
                 keyboardType="email-address"
               />
@@ -3170,12 +3232,10 @@ function PersonalSettingScreen({ navigation, session }: { navigation: any; sessi
           <Pressable
             accessibilityRole="button"
             style={styles.profileFlowPrimaryButton}
-            onPress={() => {
-              Alert.alert("Saved", "Your personal settings have been updated.")
-              navigation.goBack()
-            }}
+            disabled={saving}
+            onPress={save}
           >
-            <Text style={styles.profileFlowPrimaryText}>Save</Text>
+            {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.profileFlowPrimaryText}>Save</Text>}
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -3183,11 +3243,12 @@ function PersonalSettingScreen({ navigation, session }: { navigation: any; sessi
   )
 }
 
-function ChangePasswordScreen({ navigation }: { navigation: any }) {
+function ChangePasswordScreen({ navigation, session }: { navigation: any; session: Session }) {
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const canSubmit = Boolean(currentPassword && newPassword && confirmPassword && newPassword === confirmPassword)
+  const [saving, setSaving] = useState(false)
+  const canSubmit = Boolean(currentPassword && newPassword && confirmPassword && newPassword === confirmPassword && !saving)
 
   return (
     <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
@@ -3228,12 +3289,32 @@ function ChangePasswordScreen({ navigation }: { navigation: any }) {
             accessibilityState={{ disabled: !canSubmit }}
             style={[styles.profileFlowPrimaryButton, !canSubmit ? styles.profileFlowPrimaryButtonDisabled : null]}
             disabled={!canSubmit}
-            onPress={() => {
-              Alert.alert("Password updated", "Your password has been changed.")
-              navigation.goBack()
+            onPress={async () => {
+              if (newPassword.length < 6) {
+                Alert.alert("Password too short", "New password must be at least 6 characters.")
+                return
+              }
+              if (newPassword !== confirmPassword) {
+                Alert.alert("Passwords do not match")
+                return
+              }
+              setSaving(true)
+              try {
+                await apiRequest("/user/change-password", {
+                  token: session.token,
+                  method: "POST",
+                  body: { currentPassword, newPassword },
+                })
+                Alert.alert("Password updated", "Your password has been changed.")
+                navigation.goBack()
+              } catch (err) {
+                Alert.alert("Update failed", errorMessage(err))
+              } finally {
+                setSaving(false)
+              }
             }}
           >
-            <Text style={styles.profileFlowPrimaryText}>Update password</Text>
+            {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.profileFlowPrimaryText}>Update password</Text>}
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -3355,10 +3436,12 @@ function EnrollmentTermsScreen({ navigation }: { navigation: any }) {
   )
 }
 
-function ContactUsScreen({ navigation }: { navigation: any }) {
-  const [fullName, setFullName] = useState("")
-  const [email, setEmail] = useState("")
+function ContactUsScreen({ navigation, session }: { navigation: any; session: Session }) {
+  const { account } = useAccountData()
+  const [fullName, setFullName] = useState(account?.name || account?.full_name || session.user.name)
+  const [email, setEmail] = useState(account?.email || session.user.email)
   const [thoughts, setThoughts] = useState("")
+  const [saving, setSaving] = useState(false)
 
   return (
     <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
@@ -3401,9 +3484,27 @@ function ContactUsScreen({ navigation }: { navigation: any }) {
           <Pressable
             accessibilityRole="button"
             style={styles.contactSubmitButton}
-            onPress={() => navigation.navigate("ContactThanksApp")}
+            disabled={saving}
+            onPress={async () => {
+              if (!fullName.trim() || !thoughts.trim()) {
+                Alert.alert("Please fill in your name and message.")
+                return
+              }
+              setSaving(true)
+              try {
+                await apiRequest("/parent/contact-form", {
+                  method: "POST",
+                  body: { name: fullName.trim(), email: email.trim(), message: thoughts.trim(), category: "contact" },
+                })
+                navigation.navigate("ContactThanksApp")
+              } catch (err) {
+                Alert.alert("Submit failed", errorMessage(err))
+              } finally {
+                setSaving(false)
+              }
+            }}
           >
-            <Text style={styles.profileFlowPrimaryText}>Submit</Text>
+            {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.profileFlowPrimaryText}>Submit</Text>}
           </Pressable>
 
           <View style={styles.contactDetails}>
@@ -3460,7 +3561,10 @@ function ChildProfileScreen({
     <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
       <ProfileFlowHeader navigation={navigation} title="Child Profile" />
       <ScrollView style={styles.page} contentContainerStyle={styles.childProfileContent} showsVerticalScrollIndicator={false}>
-        {BOOKING_CHILDREN.map((child) => {
+        {flowAppState.students.length === 0 ? (
+          <Text style={styles.childProfilePrompt}>No child profiles yet. Add one to get started.</Text>
+        ) : null}
+        {flowAppState.students.map((child) => {
           const selected = child.id === flowAppState.selectedStudentId
           return (
             <Pressable
@@ -3528,14 +3632,28 @@ function ChildProfileScreen({
 function ChildDetailsScreen({
   navigation,
   route,
+  session,
+  flowAppState,
 }: {
   navigation: any
   route: { params: { childId: string } }
+  session: Session
+  flowAppState: FlowAppState
 }) {
-  const child = BOOKING_CHILDREN.find((item) => item.id === route.params.childId) || BOOKING_CHILDREN[0]
+  const { refresh } = useAccountData()
+  const child = selectedStudentOf(flowAppState, route.params.childId)
   const [fullName, setFullName] = useState<string>(child.name)
-  const [senRequired, setSenRequired] = useState(true)
+  const [school, setSchool] = useState(child.school)
+  const [senRequired, setSenRequired] = useState(child.sen)
+  const [saving, setSaving] = useState(false)
+  const [photoBusy, setPhotoBusy] = useState(false)
   const [deleteWarningOpen, setDeleteWarningOpen] = useState(false)
+
+  useEffect(() => {
+    setFullName(child.name)
+    setSchool(child.school)
+    setSenRequired(child.sen)
+  }, [child.id, child.name, child.school, child.sen])
 
   return (
     <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
@@ -3548,12 +3666,34 @@ function ChildDetailsScreen({
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.childDetailsAvatarWrap}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Change child photo"
+            style={styles.childDetailsAvatarWrap}
+            disabled={photoBusy}
+            onPress={async () => {
+              try {
+                const picked = await pickProfileImage()
+                if (!picked || !child.id) return
+                setPhotoBusy(true)
+                await apiRequest("/student/me/photo", {
+                  token: session.token,
+                  method: "POST",
+                  body: { profile_id: Number(child.id), image: picked.dataUrl },
+                })
+                await refresh()
+              } catch (err) {
+                Alert.alert("Photo failed", errorMessage(err))
+              } finally {
+                setPhotoBusy(false)
+              }
+            }}
+          >
             <Image source={{ uri: child.image }} style={styles.childDetailsAvatar} resizeMode="cover" />
             <View style={styles.profileAvatarEdit}>
-              <Feather name="user-plus" size={13} color="#FFFFFF" />
+              {photoBusy ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Feather name="camera" size={12} color="#FFFFFF" />}
             </View>
-          </View>
+          </Pressable>
 
           <View style={styles.personalField}>
             <Text style={styles.personalFieldLabel}>Full name</Text>
@@ -3565,14 +3705,11 @@ function ChildDetailsScreen({
               <Text style={styles.childSchoolMark}>z.</Text>
               school
             </Text>
-            <Text style={styles.childDetailsConnected}>connected</Text>
+            <Text style={styles.childDetailsConnected}>{school.trim() ? "connected" : "not connected"}</Text>
           </View>
-          <View style={styles.childDetailsSchoolRow}>
-            <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.childDetailsSchoolLogo} resizeMode="cover" />
-            <Text style={styles.childDetailsSchoolName}>ClassZ Chan Siu Ming{"\n"}Memorial Primary School</Text>
-            <Pressable accessibilityRole="button" hitSlop={8}>
-              <Text style={styles.childDetailsEdit}>Edit</Text>
-            </Pressable>
+          <View style={styles.personalField}>
+            <Text style={styles.personalFieldLabel}>School</Text>
+            <TextInput style={styles.personalFieldInput} value={school} onChangeText={setSchool} />
           </View>
 
           <View style={styles.childDetailsDivider} />
@@ -3603,12 +3740,35 @@ function ChildDetailsScreen({
             <Pressable
               accessibilityRole="button"
               style={styles.profileFlowPrimaryButton}
-              onPress={() => {
-                Alert.alert("Saved", `${fullName}'s profile has been updated.`)
-                navigation.goBack()
+              disabled={saving || !child.id}
+              onPress={async () => {
+                const name = fullName.trim()
+                if (!name) {
+                  Alert.alert("Full name is required")
+                  return
+                }
+                setSaving(true)
+                try {
+                  await apiRequest(`/student/profiles/${child.id}`, {
+                    token: session.token,
+                    method: "PATCH",
+                    body: {
+                      full_name: name,
+                      school: school.trim(),
+                      medical_notes: senRequired ? "SEN assistance required" : "",
+                    },
+                  })
+                  await refresh()
+                  Alert.alert("Saved", `${name}'s profile has been updated.`)
+                  navigation.goBack()
+                } catch (err) {
+                  Alert.alert("Save failed", errorMessage(err))
+                } finally {
+                  setSaving(false)
+                }
               }}
             >
-              <Text style={styles.profileFlowPrimaryText}>Save</Text>
+              {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.profileFlowPrimaryText}>Save</Text>}
             </Pressable>
           </View>
         </ScrollView>
@@ -3627,9 +3787,19 @@ function ChildDetailsScreen({
             <View style={styles.childWarningActions}>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => {
-                  setDeleteWarningOpen(false)
-                  navigation.goBack()
+                onPress={async () => {
+                  try {
+                    await apiRequest(`/student/profiles/${child.id}`, {
+                      token: session.token,
+                      method: "DELETE",
+                    })
+                    await refresh()
+                    setDeleteWarningOpen(false)
+                    navigation.goBack()
+                  } catch (err) {
+                    setDeleteWarningOpen(false)
+                    Alert.alert("Delete failed", errorMessage(err))
+                  }
                 }}
               >
                 <Text style={styles.childWarningDelete}>Delete</Text>
@@ -3645,12 +3815,15 @@ function ChildDetailsScreen({
   )
 }
 
-function AddChildProfileScreen({ navigation }: { navigation: any }) {
+function AddChildProfileScreen({ navigation, session }: { navigation: any; session: Session }) {
+  const { refresh } = useAccountData()
   const [fullName, setFullName] = useState("")
   const [idCard, setIdCard] = useState("")
   const [birthday, setBirthday] = useState("")
   const [phone, setPhone] = useState("")
   const [senRequired, setSenRequired] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [photo, setPhoto] = useState<{ preview: string; dataUrl: string } | null>(null)
 
   return (
     <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
@@ -3662,12 +3835,42 @@ function AddChildProfileScreen({ navigation }: { navigation: any }) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.addChildAvatar}>
-            <Feather name="user" size={34} color="#B5B5B5" />
-          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add child photo"
+            style={styles.addChildAvatar}
+            onPress={async () => {
+              try {
+                const picked = await pickProfileImage()
+                if (picked) setPhoto(picked)
+              } catch (err) {
+                Alert.alert("Photo failed", errorMessage(err))
+              }
+            }}
+          >
+            {photo ? (
+              <Image source={{ uri: photo.preview }} style={styles.addChildAvatarImage} resizeMode="cover" />
+            ) : (
+              <Feather name="user" size={34} color="#B5B5B5" />
+            )}
+            <View style={styles.profileAvatarEdit}>
+              <Feather name="camera" size={12} color="#FFFFFF" />
+            </View>
+          </Pressable>
           <TextInput style={styles.addChildField} value={fullName} onChangeText={setFullName} placeholder="Full name" placeholderTextColor="#B5B5B5" />
           <TextInput style={styles.addChildField} value={idCard} onChangeText={setIdCard} placeholder="ID card number" placeholderTextColor="#B5B5B5" autoCapitalize="characters" />
-          <TextInput style={styles.addChildField} value={birthday} onChangeText={setBirthday} placeholder={"Birthday\n(dd/mm/yyyy)"} placeholderTextColor="#B5B5B5" />
+          <View style={styles.addChildBirthdayField}>
+            <Text style={styles.addChildBirthdayLabel}>Birthday</Text>
+            <TextInput
+              style={styles.addChildBirthdayInput}
+              value={birthday}
+              onChangeText={setBirthday}
+              placeholder="DD/MM/YYYY"
+              placeholderTextColor="#B5B5B5"
+              keyboardType="numbers-and-punctuation"
+            />
+            <Text style={styles.addChildBirthdayHint}>Format: DD/MM/YYYY  ·  e.g. 02/10/2010</Text>
+          </View>
           <View style={styles.personalPhoneField}>
             <Pressable style={styles.personalCountryField}>
               <Text style={styles.personalFieldLabel}>Country</Text>
@@ -3708,14 +3911,54 @@ function AddChildProfileScreen({ navigation }: { navigation: any }) {
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ disabled: !fullName.trim() }}
-            style={[styles.profileFlowPrimaryButton, !fullName.trim() ? styles.profileFlowPrimaryButtonDisabled : null]}
-            disabled={!fullName.trim()}
-            onPress={() => {
-              Alert.alert("Child added", `${fullName.trim()}'s profile has been created.`)
-              navigation.goBack()
+            style={[styles.profileFlowPrimaryButton, !fullName.trim() || saving ? styles.profileFlowPrimaryButtonDisabled : null]}
+            disabled={!fullName.trim() || saving}
+            onPress={async () => {
+              const name = fullName.trim()
+              if (!name) return
+              const dob = birthday.trim() ? isoFromBirthday(birthday) : null
+              if (birthday.trim() && !dob) {
+                Alert.alert("Invalid birthday", "Please enter the birthday as DD/MM/YYYY, for example 02/10/2010.")
+                return
+              }
+              setSaving(true)
+              try {
+                const created = await apiRequest<{ data?: { id?: number } }>("/student/profiles", {
+                  token: session.token,
+                  method: "POST",
+                  body: {
+                    full_name: name,
+                    ...(dob ? { date_of_birth: dob } : {}),
+                    ...(phone.trim() ? { contact_number: phone } : {}),
+                    ...(idCard.trim() ? { id_last_four: idCard.trim().slice(-4) } : {}),
+                    ...(senRequired ? { medical_notes: "SEN assistance required" } : {}),
+                  },
+                })
+                const profileId = created.data?.id
+                if (profileId && photo) {
+                  await apiRequest("/student/me/photo", {
+                    token: session.token,
+                    method: "POST",
+                    body: { profile_id: profileId, image: photo.dataUrl },
+                  })
+                }
+                await refresh()
+                Alert.alert("Child added", `${name}'s profile has been created.`)
+                navigation.goBack()
+              } catch (err) {
+                const msg = errorMessage(err)
+                Alert.alert(
+                  "Save failed",
+                  /404/.test(msg)
+                    ? "The API running on port 3003 is an old process. Restart ClassZ-api with npm start, then try again."
+                    : msg,
+                )
+              } finally {
+                setSaving(false)
+              }
             }}
           >
-            <Text style={styles.profileFlowPrimaryText}>Save</Text>
+            {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.profileFlowPrimaryText}>Save</Text>}
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -5479,6 +5722,7 @@ function AppTabs({
         {(props) => (
           <HomeScreen
             {...props}
+            session={session}
             flowAppState={flowAppState}
             setFlowAppState={setFlowAppState}
             locale={locale}
@@ -5558,6 +5802,7 @@ export default function App() {
   async function signOut() {
     await AsyncStorage.removeItem(SESSION_KEY)
     setSession(null)
+    setFlowAppState(createInitialFlowAppState())
   }
 
   if (booting) {
@@ -5595,6 +5840,7 @@ export default function App() {
             </Stack.Screen>
           </Stack.Navigator>
         ) : (
+          <AccountDataProvider token={session.token} setFlowAppState={setFlowAppState}>
           <Stack.Navigator
             screenOptions={({ navigation, route }) => ({
               headerBackVisible: false,
@@ -5666,10 +5912,10 @@ export default function App() {
               {(props) => <PromoteCodeScreen {...props} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="PersonalSettingApp" options={{ headerShown: false }}>
-              {(props) => <PersonalSettingScreen {...props} session={session} />}
+              {(props) => <PersonalSettingScreen {...props} session={session} onSessionChange={signIn} />}
             </Stack.Screen>
             <Stack.Screen name="ChangePasswordApp" options={{ headerShown: false }}>
-              {(props) => <ChangePasswordScreen {...props} />}
+              {(props) => <ChangePasswordScreen {...props} session={session} />}
             </Stack.Screen>
             <Stack.Screen name="LanguageApp" options={{ headerShown: false }}>
               {(props) => <LanguageScreen {...props} locale={locale} onSelectLocale={selectLocale} />}
@@ -5678,7 +5924,7 @@ export default function App() {
               {(props) => <EnrollmentTermsScreen {...props} />}
             </Stack.Screen>
             <Stack.Screen name="ContactUsApp" options={{ headerShown: false }}>
-              {(props) => <ContactUsScreen {...props} />}
+              {(props) => <ContactUsScreen {...props} session={session} />}
             </Stack.Screen>
             <Stack.Screen name="ContactThanksApp" options={{ headerShown: false }}>
               {(props) => <ContactThanksScreen {...props} />}
@@ -5687,10 +5933,10 @@ export default function App() {
               {(props) => <ChildProfileScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="ChildDetailsApp" options={{ headerShown: false }}>
-              {(props) => <ChildDetailsScreen {...props} />}
+              {(props) => <ChildDetailsScreen {...props} session={session} flowAppState={flowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="AddChildProfileApp" options={{ headerShown: false }}>
-              {(props) => <AddChildProfileScreen {...props} />}
+              {(props) => <AddChildProfileScreen {...props} session={session} />}
             </Stack.Screen>
             <Stack.Screen name="FavouriteApp" options={{ headerShown: false }}>
               {(props) => <FavouriteScreen {...props} />}
@@ -5756,6 +6002,7 @@ export default function App() {
             </Stack.Screen>
             <Stack.Screen name="AllFlowsOverview" component={AllFlowsOverviewScreen} options={{ title: "All Flows Overview" }} />
           </Stack.Navigator>
+          </AccountDataProvider>
         )}
       </NavigationContainer>
     </SafeAreaProvider>
@@ -7265,7 +7512,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     gap: 18,
   },
-  childDetailsAvatarWrap: { alignSelf: "center", marginBottom: 22 },
+  childDetailsAvatarWrap: { alignSelf: "center", marginBottom: 22, width: 100, height: 100 },
   childDetailsAvatar: { width: 100, height: 100, borderRadius: 50, backgroundColor: "#E5E7EB" },
   childDetailsSchoolTitleRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   childDetailsSchoolTitle: { fontSize: FONT.heading, fontWeight: "700", color: "#222222" },
@@ -7338,6 +7585,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#E5E5E5",
     marginBottom: 8,
   },
+  addChildAvatarImage: { width: 82, height: 82, borderRadius: 41 },
+  addChildBirthdayField: { gap: 6 },
+  addChildBirthdayLabel: { fontSize: FONT.caption, fontWeight: "600", color: "#6A6A6A", paddingHorizontal: 4 },
+  addChildBirthdayInput: {
+    minHeight: 58,
+    borderWidth: 1,
+    borderColor: "#BEBEBE",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    fontSize: FONT.bodyLg,
+    color: "#222222",
+    backgroundColor: "#FFFFFF",
+  },
+  addChildBirthdayHint: { fontSize: FONT.caption, color: "#8A8A8A", paddingHorizontal: 4 },
   addChildField: {
     minHeight: 58,
     borderWidth: 1,

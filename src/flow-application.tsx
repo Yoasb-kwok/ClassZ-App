@@ -1,8 +1,11 @@
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native"
 import type { FigmaFlowItem } from "./figma-flow"
+import { FIGMA_ASSETS } from "./figma-asset-urls"
 
-type Program = {
+export type Program = {
   id: string
+  centreId?: string
+  programCode?: string
   title: string
   category: string
   location: string
@@ -10,7 +13,7 @@ type Program = {
   rating: number
 }
 
-type Centre = {
+export type Centre = {
   id: string
   name: string
   detailName?: string
@@ -33,11 +36,45 @@ type Booking = {
   total: number
 }
 
-type Student = {
+export type Student = {
   id: string
   name: string
   parent: string
   phone: string
+  level: string
+  years: number
+  connected: boolean
+  age: number | null
+  sen: boolean
+  image: string
+  imageScale: number
+  imageOffsetY: number
+  dateOfBirth: string | null
+  school: string
+  medicalNotes: string
+}
+
+export const EMPTY_STUDENT: Student = {
+  id: "",
+  name: "No child yet",
+  parent: "",
+  phone: "",
+  level: "Beginner",
+  years: 0,
+  connected: false,
+  age: null,
+  sen: false,
+  image: FIGMA_ASSETS.reservation.child,
+  imageScale: 1,
+  imageOffsetY: 0,
+  dateOfBirth: null,
+  school: "",
+  medicalNotes: "",
+}
+
+export function selectedStudentOf(state: Pick<FlowAppState, "students" | "selectedStudentId">, id?: string | null): Student {
+  const wanted = id ?? state.selectedStudentId
+  return state.students.find((s) => s.id === wanted) || state.students[0] || EMPTY_STUDENT
 }
 
 type Companion = "Rabbit" | "Owl" | "Dolphin" | "Turtle" | "Fox" | "Bee"
@@ -80,14 +117,9 @@ export function createInitialFlowAppState(): FlowAppState {
     selectedCentreId: "c1",
     couponCode: "",
     bookings: [],
-    students: [
-      { id: "s1", name: "Charlie Wong", parent: "Wong Ka Yan", phone: "91234567" },
-      { id: "s4", name: "Joseph Wong", parent: "Wong Ka Yan", phone: "91234567" },
-      { id: "s2", name: "Sophie Chan", parent: "Chan Yuki", phone: "93445566" },
-      { id: "s3", name: "Leo Ng", parent: "Ng Ka Ho", phone: "95556677" },
-    ],
-    learningRecords: { s1: 2, s2: 1, s3: 0, s4: 0 },
-    selectedStudentId: "s1",
+    students: [],
+    learningRecords: {},
+    selectedStudentId: "",
     generatedCompanions: {},
   }
 }
@@ -289,7 +321,7 @@ function LearningRecordFeature({
   setState: React.Dispatch<React.SetStateAction<FlowAppState>>
   onGoToFlowName?: (name: string) => void
 }) {
-  const selected = state.students.find((s) => s.id === state.selectedStudentId) || state.students[0]
+  const selected = selectedStudentOf(state)
   const recordCount = state.learningRecords[selected.id] || 0
   const canGenerate = recordCount >= 3
 
@@ -351,7 +383,7 @@ function CompanionFeature({
   state: FlowAppState
   setState: React.Dispatch<React.SetStateAction<FlowAppState>>
 }) {
-  const selected = state.students.find((s) => s.id === state.selectedStudentId) || state.students[0]
+  const selected = selectedStudentOf(state)
   const animal = state.generatedCompanions[selected.id] || "Rabbit"
   const allAnimals: Companion[] = ["Rabbit", "Owl", "Dolphin", "Turtle", "Fox", "Bee"]
   return (
