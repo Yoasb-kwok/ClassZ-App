@@ -40,7 +40,7 @@ import {
 } from "./src/figma-flow"
 import { FIGMA_ASSETS } from "./src/figma-asset-urls"
 import { PAYMENT_ICONS } from "./src/payment-svgs"
-import { createInitialFlowAppState, FlowApplicationSurface, selectedStudentOf, type FlowAppState } from "./src/flow-application"
+import { createInitialFlowAppState, EMPTY_STUDENT, FlowApplicationSurface, selectedStudentOf, type FlowAppState } from "./src/flow-application"
 import { API_BASE, apiRequest, errorMessage } from "./src/api"
 import { pickProfileImage } from "./src/pick-profile-image"
 import { AccountDataProvider, useAccountData } from "./src/account-data"
@@ -1668,73 +1668,154 @@ const TRANSACTIONS: TransactionRecord[] = [
   },
 ]
 
+function formatScheduleClock(raw?: string | null) {
+  if (!raw) return ""
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return ""
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(" ", "")
+}
+
+function formatScheduleRange(start?: string | null, end?: string | null) {
+  const from = formatScheduleClock(start)
+  const to = formatScheduleClock(end)
+  if (from && to) return `${from}-${to}`
+  return from || "TBC"
+}
+
+function formatScheduleDate(raw?: string | null) {
+  if (!raw) return ""
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return ""
+  return d.toLocaleDateString("en-US", { month: "short", day: "2-digit" })
+}
+
+function dateKey(raw?: string | Date | null) {
+  const d = raw instanceof Date ? raw : raw ? new Date(raw) : null
+  if (!d || Number.isNaN(d.getTime())) return ""
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+function courseSessions(
+  classes: { id: number; name: string; start_time: string | null; end_time: string | null; location: string | null; program_code: string | null }[],
+  programCode?: string | null,
+  fallback?: { name?: string | null; start_time?: string | null; end_time?: string | null; location?: string | null },
+) {
+  const code = String(programCode || "").trim().toLowerCase()
+  const sessions = code
+    ? classes
+        .filter((row) => String(row.program_code || "").trim().toLowerCase() === code)
+        .slice()
+        .sort((a, b) => String(a.start_time || "").localeCompare(String(b.start_time || "")))
+    : []
+  if (sessions.length) return sessions
+  return [{
+    id: 0,
+    name: fallback?.name || "",
+    start_time: fallback?.start_time || null,
+    end_time: fallback?.end_time || null,
+    location: fallback?.location || null,
+    program_code: programCode || null,
+  }]
+}
+
+function buildMonthCells(year: number, month: number) {
+  const mondayOffset = (new Date(year, month, 1).getDay() + 6) % 7
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(year, month, 1 - mondayOffset + index)
+    return { day: date.getDate(), date, outside: date.getMonth() !== month }
+  })
+}
+
 function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flowAppState: FlowAppState }) {
+  const { enrollments, trials, classes } = useAccountData()
   const [view, setView] = useState<ScheduleView>("calendar")
   const [selectedScheduleChildId, setSelectedScheduleChildId] = useState<string | null>(null)
   const [scopeMenuOpen, setScopeMenuOpen] = useState(false)
-  const selectedStudent = flowAppState.students.find((item) => item.id === (selectedScheduleChildId || flowAppState.selectedStudentId)) || flowAppState.students[0]
-  const selectedChild = BOOKING_CHILDREN.find((item) => item.id === selectedStudent.id) || BOOKING_CHILDREN[0]
+  const [monthCursor, setMonthCursor] = useState(() => {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  })
+  const children = flowAppState.students
+  const selectedStudent = selectedStudentOf(flowAppState, selectedScheduleChildId || flowAppState.selectedStudentId)
   const showingAllChildren = selectedScheduleChildId === null
-  const bookedProgram = flowAppState.bookings[0]
-  const scheduleItems = [
-    {
-      id: "schedule-guitar-1",
-      time: "10:00AM-01:00PM",
-      date: "Sept 02",
-      title: bookedProgram?.title || "ClassZ Guitar Program",
-      lesson: "Lesson 1 of 8",
-      child: "Charlie Wong",
-      image: FIGMA_ASSETS.reservation.program,
-      color: "#0ABAB5",
-    },
-    {
-      id: "schedule-academic",
-      time: "02:00PM-03:00PM",
-      date: "Sept 02",
-      title: "Rising Star Academic Program",
-      lesson: "Lesson 1 of 8",
-      child: "Shelly Wong",
-      image: FIGMA_ASSETS.main.recommend1,
-      color: "#F4AE00",
-    },
-    {
-      id: "schedule-painting",
-      time: "04:00PM-06:00PM",
-      date: "Sept 02",
-      title: "ClassZ Painting Program",
-      lesson: "Lesson 1 of 8",
-      child: "Lucas Wong",
-      image: FIGMA_ASSETS.main.recommend2,
-      color: "#E96E76",
-    },
-    {
-      id: "schedule-painting-2",
-      time: "04:00PM-06:00PM",
-      date: "Sept 02",
-      title: "ClassZ Painting Program",
-      lesson: "Lesson 1 of 8",
-      child: "Lucas Wong",
-      image: FIGMA_ASSETS.main.recommend2,
-      color: "#0ABAB5",
-    },
-  ]
-  const childScheduleItems = [
-    scheduleItems[0],
-    {
-      ...scheduleItems[2],
-      id: "schedule-child-painting",
-      child: selectedStudent.name,
-      time: "04:00PM-06:00PM",
-    },
-  ]
-  const upcomingChildItems = [
-    { ...scheduleItems[0], id: "upcoming-1", date: "Sept 02", child: selectedStudent.name },
-    { ...scheduleItems[0], id: "upcoming-2", date: "Oct 14", child: selectedStudent.name, lesson: "Lesson 1 of 8" },
-    { ...scheduleItems[0], id: "upcoming-3", date: "Oct 23", child: selectedStudent.name, lesson: "Lesson 3 of 8" },
-  ]
-  const visibleItems = !showingAllChildren
-    ? (view === "calendar" ? childScheduleItems : upcomingChildItems)
-    : (view === "calendar" ? scheduleItems : scheduleItems.slice(0, 3))
+  const colors = ["#0ABAB5", "#F4AE00", "#E96E76", "#A155FE"]
+  const scheduleItems = [] as {
+    id: string
+    childId: string
+    time: string
+    date: string
+    dateKey: string
+    title: string
+    lesson: string
+    child: string
+    childImage: string
+    image: string
+    color: string
+    location: string
+  }[]
+  const seenEnrollmentGroups = new Set<string>()
+  enrollments.forEach((item, index) => {
+    const child = selectedStudentOf(flowAppState, item.profile_id)
+    const group = `${item.profile_id || child.id}:${item.class?.program_code || item.id}`
+    if (seenEnrollmentGroups.has(group)) return
+    seenEnrollmentGroups.add(group)
+    const sessions = courseSessions(classes, item.class?.program_code, item.class)
+    sessions.forEach((session, lessonIndex) => {
+      scheduleItems.push({
+        id: `enroll-${item.id}-${session.id || lessonIndex}`,
+        childId: item.profile_id || child.id,
+        time: formatScheduleRange(session.start_time, session.end_time),
+        date: formatScheduleDate(session.start_time),
+        dateKey: dateKey(session.start_time),
+        title: session.name || item.class?.name || "Class",
+        lesson: `Lesson ${lessonIndex + 1} of ${sessions.length}`,
+        child: item.user_name || child.name,
+        childImage: child.image,
+        image: FIGMA_ASSETS.reservation.program,
+        color: colors[index % colors.length],
+        location: session.location || item.class?.location || "",
+      })
+    })
+  })
+  const seenTrialGroups = new Set<string>()
+  trials.forEach((item, index) => {
+    const child = flowAppState.students.find((student) =>
+      student.name.trim().toLowerCase() === String(item.full_name || "").trim().toLowerCase(),
+    ) || EMPTY_STUDENT
+    const group = `${child.id}:${item.program_code || item.id}`
+    if (seenTrialGroups.has(group)) return
+    seenTrialGroups.add(group)
+    const sessions = courseSessions(classes, item.program_code, {
+      name: item.class_name,
+      start_time: item.preferred_datetime,
+      end_time: item.preferred_end_datetime,
+      location: item.location,
+    })
+    sessions.forEach((session, lessonIndex) => {
+      scheduleItems.push({
+        id: `trial-${item.id}-${session.id || lessonIndex}`,
+        childId: child.id,
+        time: formatScheduleRange(session.start_time, session.end_time),
+        date: formatScheduleDate(session.start_time || item.applied_date),
+        dateKey: dateKey(session.start_time || item.applied_date),
+        title: session.name || item.class_name || "Trial class",
+        lesson: `Trial · lesson ${lessonIndex + 1} of ${sessions.length} · ${item.status}`,
+        child: child.name || item.full_name || "",
+        childImage: child.image,
+        image: FIGMA_ASSETS.reservation.program,
+        color: colors[(index + 2) % colors.length],
+        location: session.location || item.location || "",
+      })
+    })
+  })
+  scheduleItems.sort((a, b) => a.dateKey.localeCompare(b.dateKey) || a.time.localeCompare(b.time))
+  const visibleItems = showingAllChildren
+    ? scheduleItems
+    : scheduleItems.filter((item) => item.childId === selectedScheduleChildId)
+  const eventDays = new Set(visibleItems.map((item) => item.dateKey).filter(Boolean))
+  const monthCells = buildMonthCells(monthCursor.getFullYear(), monthCursor.getMonth())
+  const monthLabel = monthCursor.toLocaleDateString("en-US", { month: "long" })
+  const childAvatars = children.slice(0, 3).map((child) => child.image)
 
   return (
     <SafeAreaView style={styles.scheduleScreen} edges={["top"]}>
@@ -1751,7 +1832,7 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
           >
             {showingAllChildren ? (
               <View style={styles.scheduleAllAvatars}>
-                {[FIGMA_ASSETS.reservation.child, FIGMA_ASSETS.reservation.coach, FIGMA_ASSETS.reservation.child].map((image, index) => (
+                {(childAvatars.length ? childAvatars : [FIGMA_ASSETS.reservation.child]).map((image, index) => (
                   <Image
                     key={`all-child-${index}`}
                     source={{ uri: image }}
@@ -1761,7 +1842,7 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
                 ))}
           </View>
             ) : (
-              <Image source={{ uri: selectedChild.image }} style={styles.scheduleScopeAvatar} resizeMode="cover" />
+              <Image source={{ uri: selectedStudent.image }} style={styles.scheduleScopeAvatar} resizeMode="cover" />
             )}
             <Text style={styles.scheduleScopeText}>{showingAllChildren ? "All" : selectedStudent.name}</Text>
             <Feather name={scopeMenuOpen ? "chevron-up" : "chevron-down"} size={20} color="#333333" />
@@ -1788,7 +1869,7 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
               }}
             >
               <View style={styles.scheduleScopeMenuAllAvatars}>
-                {[FIGMA_ASSETS.reservation.child, FIGMA_ASSETS.reservation.coach, FIGMA_ASSETS.reservation.child].map((image, index) => (
+                {(childAvatars.length ? childAvatars : [FIGMA_ASSETS.reservation.child]).map((image, index) => (
                   <Image
                     key={`menu-all-child-${index}`}
                     source={{ uri: image }}
@@ -1800,7 +1881,7 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
               <Text style={styles.scheduleScopeMenuName}>All</Text>
               {showingAllChildren ? <Feather name="check" size={18} color="#0ABAB5" /> : null}
             </Pressable>
-            {BOOKING_CHILDREN.map((child) => (
+            {children.map((child) => (
               <Pressable
                 key={child.id}
                 accessibilityRole="menuitem"
@@ -1840,14 +1921,22 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
         {view === "calendar" ? (
           <View style={styles.scheduleCalendarCard}>
             <View style={styles.scheduleCalendarHeader}>
-              <Pressable accessibilityLabel="Previous month" style={styles.scheduleMonthButton}>
+              <Pressable
+                accessibilityLabel="Previous month"
+                style={styles.scheduleMonthButton}
+                onPress={() => setMonthCursor((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+              >
                 <Feather name="chevron-left" size={18} color="#777777" />
               </Pressable>
               <View style={styles.scheduleMonthTitleWrap}>
-                <Text style={styles.scheduleMonthTitle}>September</Text>
-                <Text style={styles.scheduleMonthYear}>2026</Text>
+                <Text style={styles.scheduleMonthTitle}>{monthLabel}</Text>
+                <Text style={styles.scheduleMonthYear}>{monthCursor.getFullYear()}</Text>
               </View>
-              <Pressable accessibilityLabel="Next month" style={styles.scheduleMonthButton}>
+              <Pressable
+                accessibilityLabel="Next month"
+                style={styles.scheduleMonthButton}
+                onPress={() => setMonthCursor((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+              >
                 <Feather name="chevron-right" size={18} color="#777777" />
               </Pressable>
             </View>
@@ -1857,19 +1946,19 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
               ))}
             </View>
             <View style={styles.scheduleCalendarGrid}>
-              {SCHEDULE_CALENDAR_DAYS.map((day, index) => {
-                const outsideMonth = index < 2 || index > 31
-                const selected = day === 2 && index < 10
-                const hasEvent = [3, 6, 8, 10, 16, 18, 23, 25, 29, 31].includes(index)
+              {monthCells.map((cell, index) => {
+                const key = dateKey(cell.date)
+                const selected = key === dateKey(new Date())
+                const hasEvent = eventDays.has(key)
                 return (
-                  <View key={`${day}-${index}`} style={styles.scheduleDayCell}>
+                  <View key={`${key}-${index}`} style={styles.scheduleDayCell}>
                     <View style={[styles.scheduleDayNumberWrap, selected ? styles.scheduleDaySelected : null]}>
                       <Text style={[
                         styles.scheduleDayNumber,
-                        outsideMonth ? styles.scheduleDayOutside : null,
+                        cell.outside ? styles.scheduleDayOutside : null,
                         selected ? styles.scheduleDayNumberSelected : null,
                       ]}>
-                        {day}
+                        {cell.day}
             </Text>
           </View>
                     {hasEvent ? <View style={styles.scheduleDayDot} /> : null}
@@ -1885,6 +1974,13 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
         )}
 
         <View style={styles.scheduleList}>
+          {visibleItems.length === 0 ? (
+            <Text style={styles.programListEmpty}>
+              {children.length === 0
+                ? "Add a child profile first, then booked classes will appear here."
+                : "No classes found for this child yet."}
+            </Text>
+          ) : null}
           {visibleItems.map((item) => (
             <Pressable
               key={item.id}
@@ -1908,11 +2004,13 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
                 <View style={styles.scheduleCardCopy}>
                   <Text style={styles.scheduleCardTitle} numberOfLines={1}>{item.title}</Text>
                   <Text style={styles.scheduleCardLesson}>{item.lesson}</Text>
-                  <View style={styles.scheduleCardChildRow}>
-                    <Image source={{ uri: item.child === "Charlie Wong" || item.child === selectedStudent.name ? selectedChild.image : FIGMA_ASSETS.reservation.child }} style={styles.scheduleCardChildAvatar} resizeMode="cover" />
-                    <Text style={styles.scheduleCardChildName}>{item.child}</Text>
-                  </View>
-                  <Text style={styles.scheduleCardCentre} numberOfLines={2}>ClassZ Playgroup Bright Kids Drawing Centre</Text>
+                  {item.child ? (
+                    <View style={styles.scheduleCardChildRow}>
+                      <Image source={{ uri: item.childImage }} style={styles.scheduleCardChildAvatar} resizeMode="cover" />
+                      <Text style={styles.scheduleCardChildName}>{item.child}</Text>
+                    </View>
+                  ) : null}
+                  <Text style={styles.scheduleCardCentre} numberOfLines={2}>{item.location || "Class location TBC"}</Text>
                 </View>
               </View>
             </Pressable>
@@ -2268,7 +2366,7 @@ function ScheduleClassDetailScreen({
 }) {
   const { title, time, date, lesson, image, color, child } = route.params
   const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || flowAppState.centres[0]
-  const bookingChild = BOOKING_CHILDREN.find((item) => item.name === child) || BOOKING_CHILDREN[0]
+  const bookingChild = flowAppState.students.find((item) => item.name === child) || selectedStudentOf(flowAppState)
 
   return (
     <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
@@ -4038,18 +4136,20 @@ function FavouriteScreen({ navigation }: { navigation: any }) {
 function ReservationAppScreen({
   navigation,
   route,
+  session,
   flowAppState,
   setFlowAppState,
 }: {
   navigation: any
   route: { params?: { schedule?: ClassScheduleOption } }
+  session: Session
   flowAppState: FlowAppState
   setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
 }) {
   const active = flowAppState.programs.find((p) => p.id === flowAppState.selectedProgramId) || flowAppState.programs[0]
   const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || flowAppState.centres[0]
-  const student = flowAppState.students.find((item) => item.id === flowAppState.selectedStudentId) || flowAppState.students[0]
-  const selectedBookingChild = BOOKING_CHILDREN.find((item) => item.id === student.id) || BOOKING_CHILDREN[0]
+  const student = selectedStudentOf(flowAppState)
+  const selectedBookingChild = student
   const schedule = route.params?.schedule ?? buildProgramSchedule(
     active,
     0,
@@ -4058,7 +4158,9 @@ function ReservationAppScreen({
     4,
     3,
   )
+  const { account, classes, refresh } = useAccountData()
   const [datesExpanded, setDatesExpanded] = useState(false)
+  const [reserving, setReserving] = useState(false)
   const lessonCount = schedule.lessonCount
   const lessonTotal = schedule.price * lessonCount
   const limitedDiscount = schedule.originalPrice ? (schedule.originalPrice - schedule.price) * lessonCount : 0
@@ -4229,20 +4331,63 @@ function ReservationAppScreen({
             accessibilityRole="button"
             accessibilityLabel={`Reserve ${lessonCount} lessons from ${schedule.dateRange}`}
             style={styles.reservationReserveButton}
-          onPress={() => {
-            const booking = {
-              id: `b${Date.now()}`,
-              programId: active.id,
-              title: active.title,
-              lessonCount,
-                dateRange: schedule.dateRange,
-              total,
+            disabled={reserving}
+          onPress={async () => {
+            if (!student.id) {
+              Alert.alert("Select a child", "Add or select a child profile before reserving.")
+              return
             }
-            setFlowAppState((prev) => ({ ...prev, bookings: [booking, ...prev.bookings] }))
+            if (!active?.id) {
+              Alert.alert("No course selected")
+              return
+            }
+            const matchedClass = classes.find((row) => {
+              const code = (active.programCode || "").trim().toLowerCase()
+              const rowCode = String(row.program_code || "").trim().toLowerCase()
+              if (code && rowCode && rowCode === code) return true
+              if (active.centreId && row.center_id != null && String(row.center_id) === active.centreId) {
+                return String(row.name || "").toLowerCase().includes(active.title.toLowerCase())
+              }
+              return false
+            })
+            setReserving(true)
+            try {
+              await apiRequest("/trial-application", {
+                token: session.token,
+                method: "POST",
+                body: {
+                  courseId: Number(active.id),
+                  ...(matchedClass ? { classId: matchedClass.id } : {}),
+                  ...(active.programCode ? { programCode: active.programCode } : {}),
+                  fullName: student.name,
+                  profileId: Number(student.id),
+                  email: session.user.email,
+                  contactNumber: student.phone || account?.mobile || "",
+                  countryCode: account?.country_code || "+852",
+                  parentsName: account?.name || account?.full_name || session.user.name,
+                  dateOfBirth: student.dateOfBirth,
+                  language: "en",
+                },
+              })
+              const booking = {
+                id: `b${Date.now()}`,
+                programId: active.id,
+                title: active.title,
+                lessonCount,
+                dateRange: schedule.dateRange,
+                total,
+              }
+              setFlowAppState((prev) => ({ ...prev, bookings: [booking, ...prev.bookings] }))
+              await refresh()
               navigation.navigate("ReservationConfirmedApp", { schedule, total })
+            } catch (err) {
+              Alert.alert("Reservation failed", errorMessage(err))
+            } finally {
+              setReserving(false)
+            }
           }}
         >
-            <Text style={styles.reservationReserveButtonText}>Reserve</Text>
+            <Text style={styles.reservationReserveButtonText}>{reserving ? "Reserving…" : "Reserve"}</Text>
         </Pressable>
           <View style={styles.reservationBreakdown}>
             <View style={styles.reservationBreakdownRow}>
@@ -4301,8 +4446,8 @@ function ReservationConfirmedScreen({
 }) {
   const active = flowAppState.programs.find((item) => item.id === flowAppState.selectedProgramId) || flowAppState.programs[0]
   const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || flowAppState.centres[0]
-  const student = flowAppState.students.find((item) => item.id === flowAppState.selectedStudentId) || flowAppState.students[0]
-  const selectedBookingChild = BOOKING_CHILDREN.find((item) => item.id === student.id) || BOOKING_CHILDREN[0]
+  const student = selectedStudentOf(flowAppState)
+  const selectedBookingChild = student
   const { schedule, total } = route.params
 
   const openTimetable = () => navigation.navigate("AppTabs", { screen: "Calendar" })
@@ -4461,7 +4606,7 @@ function SelectChildScreen({
         <View style={styles.programListHeaderSpacer} />
       </View>
       <ScrollView style={styles.page} contentContainerStyle={styles.childSelectContent} showsVerticalScrollIndicator={false}>
-        {BOOKING_CHILDREN.map((child) => {
+        {flowAppState.students.map((child) => {
           const selected = child.id === flowAppState.selectedStudentId
           return (
             <Pressable
@@ -5900,7 +6045,7 @@ export default function App() {
               )}
             </Stack.Screen>
             <Stack.Screen name="ReservationApp" options={{ headerShown: false }}>
-              {(props) => <ReservationAppScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
+              {(props) => <ReservationAppScreen {...props} session={session} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="ReservationConfirmedApp" options={{ headerShown: false }}>
               {(props) => <ReservationConfirmedScreen {...props} flowAppState={flowAppState} />}

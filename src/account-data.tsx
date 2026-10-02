@@ -45,8 +45,12 @@ export type ApiTrial = {
   id: string
   class_name: string
   status: string
+  full_name?: string
+  location?: string
+  program_code?: string
   applied_date: string | null
   preferred_datetime: string | null
+  preferred_end_datetime?: string | null
 }
 
 export type ApiOrder = {
