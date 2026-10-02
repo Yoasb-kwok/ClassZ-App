@@ -13,6 +13,7 @@ export type ApiAccount = {
   email: string
   mobile: string | null
   country_code: string | null
+  photo_url?: string | null
 }
 
 type ApiProfile = {

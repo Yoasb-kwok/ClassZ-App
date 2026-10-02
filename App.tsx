@@ -41,7 +41,7 @@ import {
 import { FIGMA_ASSETS } from "./src/figma-asset-urls"
 import { PAYMENT_ICONS } from "./src/payment-svgs"
 import { createInitialFlowAppState, EMPTY_STUDENT, FlowApplicationSurface, selectedStudentOf, type FlowAppState } from "./src/flow-application"
-import { API_BASE, apiRequest, errorMessage } from "./src/api"
+import { API_BASE, apiRequest, assetUrl, errorMessage } from "./src/api"
 import { pickProfileImage } from "./src/pick-profile-image"
 import { AccountDataProvider, useAccountData } from "./src/account-data"
 import { HOME_BANNER, HOME_PASSPORT_IMAGE, HOME_RECOMMEND_IMAGES, HOME_TRENDING_IMAGES, NAV_ICONS, SEARCH_BANNER_CENTRE, SEARCH_BANNER_PARENT, SEARCH_CATEGORY_COLORS, SEARCH_CATEGORY_IMAGES } from "./src/home-assets"
@@ -1668,6 +1668,10 @@ const TRANSACTIONS: TransactionRecord[] = [
   },
 ]
 
+function accountAvatarUrl(account?: { photo_url?: string | null } | null) {
+  return assetUrl(account?.photo_url) || FIGMA_ASSETS.reservation.coach
+}
+
 function formatScheduleClock(raw?: string | null) {
   if (!raw) return ""
   const d = new Date(raw)
@@ -1735,6 +1739,7 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), 1)
   })
+  const [selectedDateKey, setSelectedDateKey] = useState(() => dateKey(new Date()))
   const children = flowAppState.students
   const selectedStudent = selectedStudentOf(flowAppState, selectedScheduleChildId || flowAppState.selectedStudentId)
   const showingAllChildren = selectedScheduleChildId === null
@@ -1809,10 +1814,26 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
     })
   })
   scheduleItems.sort((a, b) => a.dateKey.localeCompare(b.dateKey) || a.time.localeCompare(b.time))
-  const visibleItems = showingAllChildren
+  const scopedItems = showingAllChildren
     ? scheduleItems
     : scheduleItems.filter((item) => item.childId === selectedScheduleChildId)
-  const eventDays = new Set(visibleItems.map((item) => item.dateKey).filter(Boolean))
+  const todayKey = dateKey(new Date())
+  const visibleItems = view === "calendar"
+    ? scopedItems.filter((item) => item.dateKey === selectedDateKey)
+    : scopedItems.filter((item) => item.dateKey >= todayKey)
+  const eventDays = new Set(scopedItems.map((item) => item.dateKey).filter(Boolean))
+  const selectedDateLabel = (() => {
+    const [year, month, day] = selectedDateKey.split("-").map(Number)
+    if (!year || !month || !day) return "Selected day"
+    return new Date(year, month - 1, day).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
+  })()
+
+  function moveMonth(offset: number) {
+    const next = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + offset, 1)
+    const nextMonthKey = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`
+    setMonthCursor(next)
+    setSelectedDateKey((prev) => (prev.startsWith(nextMonthKey) ? prev : dateKey(next)))
+  }
   const monthCells = buildMonthCells(monthCursor.getFullYear(), monthCursor.getMonth())
   const monthLabel = monthCursor.toLocaleDateString("en-US", { month: "long" })
   const childAvatars = children.slice(0, 3).map((child) => child.image)
@@ -1924,7 +1945,7 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
               <Pressable
                 accessibilityLabel="Previous month"
                 style={styles.scheduleMonthButton}
-                onPress={() => setMonthCursor((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+                onPress={() => moveMonth(-1)}
               >
                 <Feather name="chevron-left" size={18} color="#777777" />
               </Pressable>
@@ -1935,7 +1956,7 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
               <Pressable
                 accessibilityLabel="Next month"
                 style={styles.scheduleMonthButton}
-                onPress={() => setMonthCursor((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+                onPress={() => moveMonth(1)}
               >
                 <Feather name="chevron-right" size={18} color="#777777" />
               </Pressable>
@@ -1948,21 +1969,38 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
             <View style={styles.scheduleCalendarGrid}>
               {monthCells.map((cell, index) => {
                 const key = dateKey(cell.date)
-                const selected = key === dateKey(new Date())
+                const selected = key === selectedDateKey
+                const isToday = key === todayKey
                 const hasEvent = eventDays.has(key)
                 return (
-                  <View key={`${key}-${index}`} style={styles.scheduleDayCell}>
-                    <View style={[styles.scheduleDayNumberWrap, selected ? styles.scheduleDaySelected : null]}>
+                  <Pressable
+                    key={`${key}-${index}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${cell.date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}${hasEvent ? ", has classes" : ""}`}
+                    accessibilityState={{ selected }}
+                    style={styles.scheduleDayCell}
+                    onPress={() => {
+                      setSelectedDateKey(key)
+                      if (cell.outside) {
+                        setMonthCursor(new Date(cell.date.getFullYear(), cell.date.getMonth(), 1))
+                      }
+                    }}
+                  >
+                    <View style={[
+                      styles.scheduleDayNumberWrap,
+                      selected ? styles.scheduleDaySelected : null,
+                      !selected && isToday ? styles.scheduleDayToday : null,
+                    ]}>
                       <Text style={[
                         styles.scheduleDayNumber,
                         cell.outside ? styles.scheduleDayOutside : null,
                         selected ? styles.scheduleDayNumberSelected : null,
                       ]}>
                         {cell.day}
-            </Text>
-          </View>
-                    {hasEvent ? <View style={styles.scheduleDayDot} /> : null}
-        </View>
+                      </Text>
+                    </View>
+                    {hasEvent ? <View style={[styles.scheduleDayDot, selected ? styles.scheduleDayDotSelected : null]} /> : null}
+                  </Pressable>
                 )
               })}
             </View>
@@ -1974,11 +2012,16 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
         )}
 
         <View style={styles.scheduleList}>
+          {view === "calendar" ? (
+            <Text style={styles.scheduleSelectedDateLabel}>{selectedDateLabel}</Text>
+          ) : null}
           {visibleItems.length === 0 ? (
             <Text style={styles.programListEmpty}>
               {children.length === 0
                 ? "Add a child profile first, then booked classes will appear here."
-                : "No classes found for this child yet."}
+                : view === "calendar"
+                  ? `No classes on ${selectedDateLabel}.`
+                  : "No upcoming classes found for this child yet."}
             </Text>
           ) : null}
           {visibleItems.map((item) => (
@@ -3130,7 +3173,7 @@ function ProfileScreen({
         >
           <View style={styles.profileIdentity}>
             <View>
-              <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.profileMainAvatar} resizeMode="cover" />
+              <Image source={{ uri: accountAvatarUrl(account) }} style={styles.profileMainAvatar} resizeMode="cover" />
               <View style={styles.profileAvatarEdit}>
                 <MaterialCommunityIcons name="lead-pencil" size={15} color="#FFFFFF" />
                 <View style={styles.profileAvatarEditLine} />
@@ -3241,6 +3284,8 @@ function PersonalSettingScreen({
   const [email, setEmail] = useState(account?.email || session.user.email)
   const [phone, setPhone] = useState(account?.mobile || "")
   const [saving, setSaving] = useState(false)
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
 
   useEffect(() => {
     if (account?.name || account?.full_name) setFullName(account.name || account.full_name || "")
@@ -3282,12 +3327,40 @@ function PersonalSettingScreen({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.personalAvatarWrap}>
-            <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.personalAvatar} resizeMode="cover" />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Change profile photo"
+            style={styles.personalAvatarWrap}
+            disabled={photoBusy}
+            onPress={async () => {
+              try {
+                const picked = await pickProfileImage()
+                if (!picked) return
+                setPhotoBusy(true)
+                setPhotoPreview(picked.preview)
+                await apiRequest("/student/me/photo", {
+                  token: session.token,
+                  method: "POST",
+                  body: { image: picked.dataUrl },
+                })
+                await refresh()
+              } catch (err) {
+                setPhotoPreview(null)
+                Alert.alert("Photo failed", errorMessage(err))
+              } finally {
+                setPhotoBusy(false)
+              }
+            }}
+          >
+            <Image
+              source={{ uri: photoPreview || accountAvatarUrl(account) }}
+              style={styles.personalAvatar}
+              resizeMode="cover"
+            />
             <View style={styles.profileAvatarEdit}>
-              <Feather name="user" size={13} color="#FFFFFF" />
+              {photoBusy ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Feather name="camera" size={12} color="#FFFFFF" />}
             </View>
-          </View>
+          </Pressable>
 
           <View style={styles.personalField}>
             <Text style={styles.personalFieldLabel}>Full name</Text>
@@ -3885,6 +3958,8 @@ function ChildDetailsScreen({
             <View style={styles.childWarningActions}>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel="Delete child profile"
+                style={styles.childWarningDeleteButton}
                 onPress={async () => {
                   try {
                     await apiRequest(`/student/profiles/${child.id}`, {
@@ -3902,7 +3977,12 @@ function ChildDetailsScreen({
               >
                 <Text style={styles.childWarningDelete}>Delete</Text>
               </Pressable>
-              <Pressable accessibilityRole="button" style={styles.childWarningBack} onPress={() => setDeleteWarningOpen(false)}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Cancel delete"
+                style={styles.childWarningBack}
+                onPress={() => setDeleteWarningOpen(false)}
+              >
                 <Text style={styles.childWarningBackText}>Go Back</Text>
               </Pressable>
             </View>
@@ -5820,6 +5900,7 @@ function AppTabs({
   locale: AppLocale
   onToggleLocale: () => void
 }) {
+  const { account } = useAccountData()
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -5845,7 +5926,7 @@ function AppTabs({
             return (
               <View style={styles.realTabIconWrap}>
                 <Image
-                  source={{ uri: FIGMA_ASSETS.reservation.coach }}
+                  source={{ uri: accountAvatarUrl(account) }}
                   style={[styles.profileTabAvatar, focused ? styles.profileTabAvatarActive : null]}
                   resizeMode="cover"
                 />
@@ -7057,10 +7138,13 @@ const styles = StyleSheet.create({
   scheduleDayCell: { width: "14.285%", height: 38, alignItems: "center", justifyContent: "center" },
   scheduleDayNumberWrap: { width: 25, height: 25, borderRadius: 13, alignItems: "center", justifyContent: "center" },
   scheduleDaySelected: { backgroundColor: "#0ABAB5" },
+  scheduleDayToday: { borderWidth: 1, borderColor: "#0ABAB5" },
   scheduleDayNumber: { fontSize: FONT.caption, color: "#3F4650" },
   scheduleDayOutside: { color: "#B8B8B8" },
   scheduleDayNumberSelected: { color: "#FFFFFF", fontWeight: "700" },
   scheduleDayDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: "#0ABAB5", marginTop: 1 },
+  scheduleDayDotSelected: { backgroundColor: "#FFFFFF" },
+  scheduleSelectedDateLabel: { fontSize: FONT.body, color: "#222222", fontWeight: "700", marginBottom: 2 },
   scheduleViewAll: { alignSelf: "flex-end" },
   scheduleViewAllText: { fontSize: FONT.caption, color: "#222222", textDecorationLine: "underline" },
   scheduleList: { gap: 14 },
@@ -7459,7 +7543,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     gap: 18,
   },
-  personalAvatarWrap: { alignSelf: "center", marginTop: 4, marginBottom: 16 },
+  personalAvatarWrap: { alignSelf: "center", marginTop: 4, marginBottom: 16, width: 100, height: 100 },
   personalAvatar: { width: 100, height: 100, borderRadius: 50, backgroundColor: "#E5E7EB" },
   personalField: {
     minHeight: 70,
@@ -7701,11 +7785,19 @@ const styles = StyleSheet.create({
   childWarningName: { fontSize: FONT.headline, fontWeight: "600", color: "#222222" },
   childWarningText: { fontSize: FONT.caption, lineHeight: 17, color: "#333333", textAlign: "center" },
   childWarningTextBold: { fontWeight: "700" },
-  childWarningActions: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
-  childWarningDelete: { fontSize: FONT.caption, color: "#777777", textDecorationLine: "underline" },
+  childWarningActions: { width: "100%", flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 },
+  childWarningDeleteButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F3F3F3",
+  },
+  childWarningDelete: { fontSize: FONT.body, fontWeight: "600", color: "#C0392B" },
   childWarningBack: {
-    width: "70%",
-    minHeight: 38,
+    flex: 1,
+    minHeight: 44,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
