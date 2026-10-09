@@ -13,6 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Feather from "@expo/vector-icons/Feather"
 import { SvgXml } from "react-native-svg"
+import { apiRequest, errorMessage } from "./api"
 import { LOGIN_SVGS } from "./login-svgs"
 import { REGISTER_SVGS } from "./register-svgs"
 
@@ -271,17 +272,6 @@ export function LoginFormScreen({
               Register
             </Text>
           </Text>
-          <View style={styles.hintBox}>
-            <Text style={styles.hintTitle}>Test login</Text>
-            {role === "centre" ? (
-              <Text style={styles.hintLine}>centre@classzcentre.demo</Text>
-            ) : role === "coach" ? (
-              <Text style={styles.hintLine}>teacher1@classzcentre.demo</Text>
-            ) : (
-              <Text style={styles.hintLine}>parent+91234567@classzcentre.local</Text>
-            )}
-            <Text style={styles.hintPwd}>Password: 111111</Text>
-          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -374,6 +364,8 @@ export function RegisterFormScreen({
   const [hidePassword, setHidePassword] = useState(true)
   const [hideConfirm, setHideConfirm] = useState(true)
   const [agreed, setAgreed] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState("")
 
   const checks = useMemo(() => {
     const hasLen = password.length >= 8
@@ -481,6 +473,7 @@ export function RegisterFormScreen({
             {confirm.length > 0 && !checks.match ? (
               <Text style={styles.errorText}>Passwords do not match.</Text>
             ) : null}
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <Pressable style={styles.termsRow} onPress={() => setAgreed((v) => !v)}>
               <View style={[styles.termsCheck, agreed ? styles.termsCheckActive : null]}>
@@ -497,14 +490,42 @@ export function RegisterFormScreen({
 
       <View style={[styles.registerFormFooter, { paddingBottom: Math.max(insets.bottom, 24) }]}>
         <Pressable
-          style={[styles.nextBtn, canNext ? styles.primaryBtn : styles.nextBtnDisabled]}
-          disabled={!canNext}
-          onPress={() =>
-            navigation.navigate("Login", { role: accountType === "parent" ? "user" : accountType })
-          }
+          style={[styles.nextBtn, canNext && !busy ? styles.primaryBtn : styles.nextBtnDisabled]}
+          disabled={!canNext || busy}
+          onPress={async () => {
+            setError("")
+            if (accountType === "centre") {
+              // TODO(backend): POST /public/centers/register needs centre name, district, category, and mobile.
+              // Those fields are not on this screen, and centre CRM stays on the website.
+              setError("Centre accounts are created on the ClassZ website. This app is for parents and students.")
+              return
+            }
+            if (accountType === "coach") {
+              // TODO(backend): POST /user/register creates a parent/student login. No coach-role register route was found.
+              setError("Coach logins are issued by your centre. This form creates a parent account only.")
+              return
+            }
+            setBusy(true)
+            try {
+              const localName = email.trim().split("@")[0] || "Parent"
+              await apiRequest("/user/register", {
+                method: "POST",
+                body: {
+                  email: email.trim(),
+                  password,
+                  fullName: localName,
+                },
+              })
+              navigation.navigate("Login", { role: "user" })
+            } catch (err) {
+              setError(errorMessage(err, "Registration failed."))
+            } finally {
+              setBusy(false)
+            }
+          }}
         >
-          <Text style={[styles.nextBtnText, canNext ? styles.primaryBtnText : styles.nextBtnTextDisabled]}>
-            Next
+          <Text style={[styles.nextBtnText, canNext && !busy ? styles.primaryBtnText : styles.nextBtnTextDisabled]}>
+            {busy ? "Creating account…" : "Next"}
           </Text>
         </Pressable>
       </View>
@@ -520,6 +541,9 @@ export function ForgotPasswordScreen({
   navigation: any
 }) {
   const [email, setEmail] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState("")
+  const [error, setError] = useState("")
   return (
     <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
       <View style={styles.loginTopBar}>
@@ -531,8 +555,33 @@ export function ForgotPasswordScreen({
           Enter your email and we’ll send reset instructions.
         </Text>
         <AuthField label="Email" value={email} onChangeText={setEmail} placeholder="Email Address" />
-        <Pressable style={styles.primaryBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.primaryBtnText}>Send reset link</Text>
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {message ? <Text style={styles.registerWelcomeSub}>{message}</Text> : null}
+        <Pressable
+          style={[styles.primaryBtn, busy ? styles.btnDisabled : null]}
+          disabled={busy}
+          onPress={async () => {
+            setError("")
+            setMessage("")
+            if (!email.trim()) {
+              setError("Enter your email address.")
+              return
+            }
+            setBusy(true)
+            try {
+              const result = await apiRequest<{ msg?: string; message?: string }>("/user/forgot-password", {
+                method: "POST",
+                body: { email: email.trim(), language: "en" },
+              })
+              setMessage(result.msg || result.message || "If this email is registered, reset instructions are on the way.")
+            } catch (err) {
+              setError(errorMessage(err, "Could not send a reset email."))
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Send reset link</Text>}
         </Pressable>
       </View>
     </SafeAreaView>

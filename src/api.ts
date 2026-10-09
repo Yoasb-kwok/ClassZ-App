@@ -10,6 +10,20 @@ export function assetUrl(path: string | null | undefined): string | null {
 
 type ApiErrorBody = { success?: boolean; msg?: string; message?: string; errors?: { msg?: string }[] }
 
+export class ApiError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = "ApiError"
+    this.status = status
+  }
+}
+
+export function isMissingRoute(err: unknown): boolean {
+  return err instanceof ApiError && (err.status === 404 || err.status === 405)
+}
+
 export async function apiRequest<T>(
   path: string,
   init: { token?: string; method?: string; body?: unknown } = {},
@@ -24,7 +38,10 @@ export async function apiRequest<T>(
   })
   const data = (await res.json().catch(() => ({}))) as T & ApiErrorBody
   if (!res.ok || data.success === false) {
-    throw new Error(data.msg || data.message || data.errors?.[0]?.msg || `Request failed (${res.status})`)
+    throw new ApiError(
+      data.msg || data.message || data.errors?.[0]?.msg || `Request failed (${res.status})`,
+      res.status,
+    )
   }
   return data
 }
