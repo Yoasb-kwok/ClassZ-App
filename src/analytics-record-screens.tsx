@@ -2,69 +2,20 @@ import { useState } from "react"
 import Feather from "@expo/vector-icons/Feather"
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { Path, Svg, SvgXml, Text as SvgText } from "react-native-svg"
-import { ANALYTICS_NOTE_SVGS } from "./analytics-svgs"
-import { FIGMA_ASSETS } from "./figma-asset-urls"
+import { useAccountData, type PassportLesson, type PassportMedia } from "./account-data"
+import { assetUrl } from "./api"
 import { FONT } from "./typography"
 
-const GUITAR_IMAGE = { uri: FIGMA_ASSETS.reservation.program }
-const CENTRE_IMAGE = { uri: FIGMA_ASSETS.reservation.host }
-const COACH_IMAGE = { uri: FIGMA_ASSETS.reservation.coach }
-const WORK_SAMPLE_IMAGE = require("../assets/figma/analytics/work-sample.png")
-const GUITAR_RECORD_IMAGE = require("../assets/mobile/analytics/guitar-hero.png")
-const MOMENT_GUITAR = require("../assets/mobile/analytics/moment-guitar.png")
-const NOTE_HELP = require("../assets/mobile/analytics/note-help.png")
-const NOTE_OBSERVED = require("../assets/mobile/analytics/note-observed.png")
-const NOTE_COACH = require("../assets/mobile/analytics/note-coach.png")
-const PROGRAM_IMAGES: Record<string, number> = {
-  "Guitar Program": GUITAR_RECORD_IMAGE,
-  "Chess Program": require("../assets/mobile/analytics/record-chess.png"),
-  "Badminton Team": require("../assets/mobile/analytics/record-badminton.png"),
-  "Swimming Team": require("../assets/mobile/analytics/record-swimming.png"),
+function formatRecordDate(raw?: string | null) {
+  if (!raw) return ""
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return raw
+  return parsed.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
 }
 
-const ACTIVITY_GROUPS = [
-  {
-    date: "12 May, 26",
-    records: [
-      { title: "Guitar Program", count: 3, badge: "Early observations", badgeColor: "#E8F7F7", centre: "Class Music Club", image: require("../assets/mobile/analytics/record-guitar.png") },
-      { title: "Chess Program", count: 14, badge: "Consistent pattern", badgeColor: "#FFF7DF", centre: "Advance Elite Chess", image: require("../assets/mobile/analytics/record-chess.png") },
-    ],
-  },
-  {
-    date: "03 May, 26",
-    records: [
-      { title: "Badminton Team", count: 4, badge: "Emerging pattern", badgeColor: "#FFF0ED", centre: "Kidzo Sports Centre", image: require("../assets/mobile/analytics/record-badminton.png") },
-      { title: "Swimming Team", count: 2, badge: "Early observations", badgeColor: "#E8F7F7", centre: "Bright Kids Playgroup Centre", image: require("../assets/mobile/analytics/record-swimming.png") },
-    ],
-  },
-  { date: "02 May, 26", records: [] },
-] as const
-
-const MOMENTS = [
-  { title: "ClassZ Guitar Program", image: MOMENT_GUITAR },
-  { title: "Swimming Team", image: require("../assets/mobile/analytics/moment-swimming.png") },
-  { title: "Western Chess Program", image: require("../assets/mobile/analytics/moment-chess.png") },
-  { title: "Adventurous Outing Camp", image: require("../assets/mobile/analytics/moment-camping.png") },
-] as const
-
-const ACADEMIC_GROUPS = [
-  {
-    date: "12 May, 26",
-    records: [
-      { title: "S3 Maths Class", count: 3, badge: "Early observations", badgeColor: "#E8F7F7" },
-      { title: "S3 Chinese Class", count: 14, badge: "Consistent pattern", badgeColor: "#FFF7DF" },
-    ],
-  },
-  {
-    date: "03 May, 26",
-    records: [
-      { title: "English Spelling Class", count: 4, badge: "Emerging pattern", badgeColor: "#FFF0ED" },
-      { title: "History Class", count: 2, badge: "Early observations", badgeColor: "#E8F7F7" },
-    ],
-  },
-  { date: "02 May, 26", records: [] },
-] as const
+function lessonsFor(kind: "academic" | "activity", lessons: PassportLesson[]) {
+  return lessons.filter((lesson) => !lesson.kind || lesson.kind === kind)
+}
 
 function RecordHeader({ navigation, title }: { navigation: any; title: string }) {
   return (
@@ -87,157 +38,58 @@ function Meta({ icon, children }: { icon: keyof typeof Feather.glyphMap; childre
   )
 }
 
-function Host({ coach = false, compact = false }: { coach?: boolean; compact?: boolean }) {
+function RecordList({ navigation, title, lessons }: { navigation: any; title: string; lessons: PassportLesson[] }) {
   return (
-    <View style={styles.hostRow}>
-      <Image source={coach ? COACH_IMAGE : CENTRE_IMAGE} style={compact ? styles.hostAvatarSmall : styles.hostAvatar} resizeMode="cover" />
-      <View style={styles.hostCopy}>
-        <Text style={styles.hostName} numberOfLines={2}>{coach ? "Athena Yeung" : "ClassZ Playgroup Bright Kids Drawing Centre"}</Text>
-        {coach ? <Text style={styles.hostRole}>Program Coach</Text> : null}
-      </View>
-      {!coach ? (
-        <View style={styles.hostRating}>
-          <Feather name="star" size={14} color="#222222" />
-          <Text style={styles.hostRatingText}>4.91</Text>
-        </View>
-      ) : null}
-    </View>
-  )
-}
-
-function SectionCard({ children, style }: { children: React.ReactNode; style?: object }) {
-  return <View style={[styles.sectionCard, style]}>{children}</View>
-}
-
-function NoteBlock({ title, body, last = false }: { title: string; body: string; last?: boolean }) {
-  return (
-    <View style={[styles.noteBlock, !last ? styles.noteDivider : null]}>
-      {title ? <Text style={styles.noteTitle}>{title}</Text> : null}
-      <Text style={styles.noteBody}>{body}</Text>
-    </View>
-  )
-}
-
-function ProgressChart() {
-  return (
-    <View style={styles.chartWrap}>
-      <Text style={styles.chartAxis}>Progress</Text>
-      <Svg width="100%" height={210} viewBox="0 0 330 210" accessibilityLabel="Progress rises from lesson one to lesson six">
-        {[20, 60, 100, 140, 180].map((y) => <Path key={`h${y}`} d={`M32 ${y}H320`} stroke="#E7ECF0" strokeWidth="1" />)}
-        {[32, 80, 128, 176, 224, 272, 320].map((x) => <Path key={`v${x}`} d={`M${x} 20V180`} stroke="#E7ECF0" strokeWidth="1" />)}
-        <Path d="M32 180 L80 140 L128 140 L176 90 L224 90 L272 140 L320 20 L320 180 Z" fill="#78DDF2" opacity="0.88" />
-        {["0", "1", "2", "3", "4", "5", "6"].map((label, index) => <SvgText key={label} x={32 + index * 48} y="199" fill="#667078" fontSize="10" textAnchor="middle">{label}</SvgText>)}
-      </Svg>
-      <Text style={styles.chartBottomAxis}>Lesson</Text>
-    </View>
+    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
+      <RecordHeader navigation={navigation} title={title} />
+      <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+        {lessons.length === 0 ? (
+          <Text style={styles.noteBody}>No records yet.</Text>
+        ) : lessons.map((record) => (
+          <Pressable
+            key={record.id}
+            accessibilityRole="button"
+            style={styles.recordListCard}
+            onPress={() => navigation.navigate("ProgramRecordApp", { programTitle: record.title })}
+          >
+            <View style={[styles.recordListImage, { backgroundColor: "#F3F4F6" }]} />
+            <View style={styles.recordListCopy}>
+              <Text style={styles.recordListTitle} numberOfLines={1}>{record.title}</Text>
+              <Meta icon="file-text">{record.record_count ? `${record.record_count} records` : "Record"}</Meta>
+              <Meta icon="map-pin">{record.center_name || record.location || "Centre"}</Meta>
+            </View>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </SafeAreaView>
   )
 }
 
 export function AcademicRecordScreen({ navigation }: { navigation: any }) {
-  return (
-    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
-      <RecordHeader navigation={navigation} title="Academic Record" />
-      <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
-        {ACADEMIC_GROUPS.map((group) => (
-          <View key={group.date} style={styles.dateGroup}>
-            <Text style={styles.dateHeading}>{group.date}</Text>
-            {group.records.map((record) => (
-              <Pressable
-                key={record.title}
-                accessibilityRole="button"
-                style={styles.recordListCard}
-                onPress={() => navigation.navigate("ProgramRecordApp", { programTitle: record.title })}
-              >
-                <Image source={GUITAR_IMAGE} style={styles.recordListImage} resizeMode="cover" />
-                <View style={styles.recordListCopy}>
-                  <Text style={styles.recordListTitle} numberOfLines={1}>{record.title}</Text>
-                  <View style={styles.recordListMetaLine}>
-                    <Meta icon="file-text">{record.count} Records</Meta>
-                    <Text style={[styles.patternBadge, { backgroundColor: record.badgeColor }]}>{record.badge}</Text>
-                  </View>
-                  <Meta icon="map-pin">Bright Kids Playgroup Centre</Meta>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        ))}
-      </ScrollView>
-    </SafeAreaView>
-  )
+  const { learning } = useAccountData()
+  return <RecordList navigation={navigation} title="Academic Record" lessons={lessonsFor("academic", learning?.lessons || [])} />
 }
 
 export function ActivityRecordScreen({ navigation }: { navigation: any }) {
-  return (
-    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
-      <RecordHeader navigation={navigation} title="Activity Record" />
-      <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
-        {ACTIVITY_GROUPS.map((group) => (
-          <View key={group.date} style={styles.dateGroup}>
-            <Text style={styles.dateHeading}>{group.date}</Text>
-            {group.records.map((record) => (
-              <Pressable key={record.title} accessibilityRole="button" accessibilityLabel={record.title} style={styles.recordListCard} onPress={() => navigation.navigate("ProgramRecordApp", { programTitle: record.title })}>
-                <Image source={record.image} style={styles.recordListImage} resizeMode="cover" />
-                <View style={styles.recordListCopy}>
-                  <Text style={styles.recordListTitle} numberOfLines={1}>{record.title}</Text>
-                  <View style={styles.recordListMetaLine}>
-                    <Meta icon="file-text">{record.count} Records</Meta>
-                    <Text style={[styles.patternBadge, { backgroundColor: record.badgeColor }]}>{record.badge}</Text>
-                  </View>
-                  <Meta icon="map-pin">{record.centre}</Meta>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        ))}
-      </ScrollView>
-    </SafeAreaView>
-  )
+  const { learning } = useAccountData()
+  return <RecordList navigation={navigation} title="Activity Record" lessons={lessonsFor("activity", learning?.lessons || [])} />
 }
 
 export function ProgramRecordScreen({ navigation, route }: { navigation: any; route: { params: { programTitle: string } } }) {
+  const { learning } = useAccountData()
   const title = route.params.programTitle
-  const activityRecord = [...ACTIVITY_GROUPS[0].records, ...ACTIVITY_GROUPS[1].records].find((record) => record.title === title)
+  const lesson = (learning?.lessons || []).find((item) => item.title === title)
   return (
     <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
       <RecordHeader navigation={navigation} title="Program Record" />
       <ScrollView contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
-        <Image source={PROGRAM_IMAGES[title] || GUITAR_IMAGE} style={styles.heroImage} resizeMode="cover" />
         <Text style={styles.heroTitle}>{title}</Text>
-        <View style={styles.programMeta}>
-          <Meta icon="file-text">{activityRecord?.count ?? 2} Records</Meta>
-          <Text style={[styles.patternBadge, { backgroundColor: activityRecord?.badgeColor ?? "#FFF7DF" }]}>{activityRecord?.badge ?? "Consistent pattern"}</Text>
-        </View>
-        <Meta icon="map-pin">{activityRecord?.centre ?? "Bright Kids Playgroup Centre"}</Meta>
-        <Text style={styles.hostLabel}>Hosted by</Text>
-        <Host />
-        <ProgressChart />
-
-        <SectionCard>
-          <View style={styles.noteCardHeading}><Text style={styles.sectionTitle}>Current Progress</Text><SvgXml xml={ANALYTICS_NOTE_SVGS.progress} width={42} height={42} /></View>
-          <NoteBlock title="" body="Charlie is becoming more confident with basic rhythm patterns and can complete familiar exercises with increasing independence. He still benefits from guidance when moving into more difficult chord transitions." />
-          <NoteBlock title="Repeated Strength" body="Persistence\nCharlie has repeatedly continued practising after finding a section difficult and is increasingly willing to try again before giving up." />
-          <NoteBlock title="Repeated Support Need" body="Rhythm during chord changes\nAcross recent lessons, Charlie has needed guidance to keep a steady rhythm when moving between less familiar chords." last />
-        </SectionCard>
-
-        <SectionCard>
-          <View style={styles.noteCardHeading}><Text style={styles.sectionTitle}>What Seems to Help</Text><Image source={NOTE_HELP} style={styles.noteArt} resizeMode="contain" /></View>
-          <NoteBlock title="Short verbal prompts" body="Brief verbal prompts have helped Charlie refocus on the rhythm and continue practising without needing the whole exercise demonstrated again." />
-          <NoteBlock title="Current Focus" body="Maintaining rhythm through chord transitions\nThe current focus is helping Charlie change between chords smoothly while keeping a steady beat." last />
-        </SectionCard>
-
-        <Text style={styles.sectionHeading}>Recent Records</Text>
-        {["8th lesson", "7th lesson", "6th lesson"].map((lesson) => (
-          <Pressable key={lesson} accessibilityRole="button" style={styles.recentCard} onPress={() => navigation.navigate("ClassRecordApp", { programTitle: title, lesson })}>
-            <Text style={styles.recentTitle}>{title}</Text>
-            <View style={styles.recentMeta}>
-              <Meta icon="calendar">{lesson}</Meta>
-              <Meta icon="calendar">12 May (Fri)</Meta>
-              <Meta icon="clock">4:00PM–5:00PM</Meta>
-              <Meta icon="map-pin">Bright Kids Playgroup Centre</Meta>
-            </View>
-            <View style={styles.recentCoach}><Image source={COACH_IMAGE} style={styles.recentCoachAvatar} /><Text style={styles.recentCoachName}>by Athena Yeung</Text></View>
-          </Pressable>
-        ))}
+        {lesson?.record_count ? <Meta icon="file-text">{lesson.record_count} records</Meta> : null}
+        <Meta icon="map-pin">{lesson?.center_name || lesson?.location || "Centre"}</Meta>
+        {lesson?.instructor ? <Meta icon="user">{lesson.instructor}</Meta> : null}
+        {lesson?.latest_at ? <Meta icon="calendar">{formatRecordDate(lesson.latest_at)}</Meta> : null}
+        {/* TODO(backend): passport lessons do not include coach notes, progress charts, or per-lesson writeups. */}
+        <Text style={styles.noteBody}>Coach notes for this program have not been published yet.</Text>
       </ScrollView>
     </SafeAreaView>
   )
@@ -248,89 +100,55 @@ export function ClassRecordScreen({ navigation, route }: { navigation: any; rout
     <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
       <RecordHeader navigation={navigation} title="Class Record" />
       <ScrollView contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
-        <Image source={PROGRAM_IMAGES[route.params.programTitle] || GUITAR_IMAGE} style={styles.heroImage} resizeMode="cover" />
         <Text style={styles.heroTitle}>{route.params.programTitle}</Text>
         <Meta icon="calendar">{route.params.lesson}</Meta>
-        <View style={styles.classMetaRow}><Meta icon="calendar">12 May (Fri)</Meta><Meta icon="clock">4:00PM–5:00PM</Meta></View>
-        <Meta icon="map-pin">Bright Kidz Playgroup Centre</Meta>
-
-        <Text style={styles.sectionHeading}>Feedback by</Text>
-        <Host compact />
-        <Host coach compact />
-
-        <SectionCard style={styles.focusCard}>
-          <View style={styles.focusTop}><Text style={styles.sectionTitle}>Today’s Focus</Text><Text style={[styles.patternBadge, styles.warmBadge]}>Developing</Text></View>
-          <Text style={styles.focusBody}>Rhythm practice and chord transitions</Text>
-        </SectionCard>
-
-        <SectionCard>
-          <View style={styles.noteCardHeading}><Text style={styles.sectionTitle}>What We Observed</Text><Image source={NOTE_OBSERVED} style={styles.noteArt} resizeMode="contain" /></View>
-          <NoteBlock title="" body="During rhythm practice, Charlie paused when changing between chords and needed some guidance to keep the beat. After one verbal prompt, he was able to continue the exercise." />
-          <NoteBlock title="Support Need Today" body="Charlie needed some guidance to maintain the rhythm while moving between unfamiliar chord changes." />
-          <NoteBlock title="What Helped" body="A short verbal prompt helped Charlie continue the exercise." />
-          <NoteBlock title="Next Step" body="Continue practising the chord changes slowly before increasing the tempo." last />
-        </SectionCard>
-
-        <SectionCard>
-          <View style={styles.noteCardHeading}><Text style={styles.sectionTitle}>Coach’s Note</Text><Image source={NOTE_COACH} style={styles.noteArt} resizeMode="contain" /></View>
-          <Text style={styles.noteBody}>Keep it up! Charlie is doing exceptional. Great work! Would suggest Charlie to read more Chinese books in leisure time.</Text>
-        </SectionCard>
-
-        <Text style={styles.sectionHeading}>Moment</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Open Moments" onPress={() => navigation.navigate("MomentsApp")}>
-          <Image source={MOMENT_GUITAR} style={styles.samplePreview} resizeMode="cover" />
-        </Pressable>
+        {/* TODO(backend): there is no per-lesson observation endpoint for parents yet. */}
+        <Text style={styles.noteBody}>A lesson-by-lesson writeup is not available yet.</Text>
       </ScrollView>
+    </SafeAreaView>
+  )
+}
+
+function MediaList({ navigation, title, items }: { navigation: any; title: string; items: PassportMedia[] }) {
+  const [selected, setSelected] = useState<number | null>(null)
+  const current = selected !== null ? items[selected] : null
+  const imageOf = (item: PassportMedia) => assetUrl(item.image)
+  return (
+    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
+      <RecordHeader navigation={navigation} title={title} />
+      <ScrollView contentContainerStyle={styles.samplesContent} showsVerticalScrollIndicator={false}>
+        {items.length === 0 ? <Text style={styles.noteBody}>Nothing has been published yet.</Text> : items.map((item, index) => {
+          const image = imageOf(item)
+          return (
+            <Pressable key={String(item.id)} accessibilityRole="button" accessibilityLabel={`View ${item.title}`} style={styles.sampleItem} onPress={() => image && setSelected(index)}>
+              {image ? <Image source={{ uri: image }} style={styles.sampleImage} resizeMode="cover" /> : <View style={[styles.sampleImage, { backgroundColor: "#F3F4F6" }]} />}
+              <Text style={styles.sampleTitle}>{item.title}</Text>
+              <View style={styles.sampleMeta}>
+                {item.date ? <Text style={styles.sampleDate}>{formatRecordDate(item.date)}</Text> : null}
+                {item.centre ? <Text style={styles.sampleCentreName} numberOfLines={1}>{item.centre}</Text> : null}
+              </View>
+            </Pressable>
+          )
+        })}
+      </ScrollView>
+      <Modal visible={current != null && Boolean(imageOf(current))} animationType="fade" transparent onRequestClose={() => setSelected(null)}>
+        <View style={styles.previewOverlay}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close" style={styles.previewClose} onPress={() => setSelected(null)}><Feather name="x" size={22} color="#222222" /></Pressable>
+          {current && imageOf(current) ? <Image source={{ uri: imageOf(current) || "" }} style={styles.fullSample} resizeMode="contain" /> : null}
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
 
 export function MomentsScreen({ navigation }: { navigation: any }) {
-  const [selected, setSelected] = useState<number | null>(null)
-  return (
-    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
-      <RecordHeader navigation={navigation} title="Moments" />
-      <ScrollView contentContainerStyle={styles.samplesContent} showsVerticalScrollIndicator={false}>
-        {MOMENTS.map((moment, index) => (
-          <Pressable key={moment.title} accessibilityRole="button" accessibilityLabel={`View ${moment.title} moment`} style={styles.sampleItem} onPress={() => setSelected(index)}>
-            <Image source={moment.image} style={styles.sampleImage} resizeMode="cover" />
-            <Text style={styles.sampleTitle}>{moment.title}</Text>
-            <View style={styles.sampleMeta}><Text style={styles.sampleDate}>12 Apr 2026</Text><Image source={CENTRE_IMAGE} style={styles.sampleCentreLogo} /><Text style={styles.sampleCentreName} numberOfLines={1}>ClassZ Playgroup Bright Kids Drawing Centre</Text></View>
-          </Pressable>
-        ))}
-      </ScrollView>
-      <Modal visible={selected !== null} animationType="fade" transparent onRequestClose={() => setSelected(null)}>
-        <View style={styles.previewOverlay}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close moment" style={styles.previewClose} onPress={() => setSelected(null)}><Feather name="x" size={22} color="#222222" /></Pressable>
-          {selected !== null ? <Image source={MOMENTS[selected].image} style={styles.fullSample} resizeMode="contain" /> : null}
-        </View>
-      </Modal>
-    </SafeAreaView>
-  )
+  const { learning } = useAccountData()
+  return <MediaList navigation={navigation} title="Moments" items={learning?.moments || []} />
 }
 
 export function WorkSamplesScreen({ navigation }: { navigation: any }) {
-  const [previewOpen, setPreviewOpen] = useState(false)
-  return (
-    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
-      <RecordHeader navigation={navigation} title="Work Samples" />
-      <ScrollView contentContainerStyle={styles.samplesContent} showsVerticalScrollIndicator={false}>
-        {[0, 1, 2, 3, 4].map((index) => (
-          <Pressable key={index} accessibilityRole="button" accessibilityLabel={`View S3 Chinese Class work sample ${index + 1}`} style={styles.sampleItem} onPress={() => setPreviewOpen(true)}>
-            <Image source={WORK_SAMPLE_IMAGE} style={styles.sampleImage} resizeMode="cover" />
-            <Text style={styles.sampleTitle}>S3 Chinese Class</Text>
-            <View style={styles.sampleMeta}><Text style={styles.sampleDate}>12 Apr 2026</Text><Image source={CENTRE_IMAGE} style={styles.sampleCentreLogo} /><Text style={styles.sampleCentreName} numberOfLines={1}>ClassZ Playgroup Bright Kids Drawing Centre</Text></View>
-          </Pressable>
-        ))}
-      </ScrollView>
-      <Modal visible={previewOpen} animationType="fade" transparent onRequestClose={() => setPreviewOpen(false)}>
-        <View style={styles.previewOverlay}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close work sample" style={styles.previewClose} onPress={() => setPreviewOpen(false)}><Feather name="x" size={22} color="#222222" /></Pressable>
-          <Image source={WORK_SAMPLE_IMAGE} style={styles.fullSample} resizeMode="contain" />
-        </View>
-      </Modal>
-    </SafeAreaView>
-  )
+  const { learning } = useAccountData()
+  return <MediaList navigation={navigation} title="Work Samples" items={learning?.workSamples || []} />
 }
 
 const styles = StyleSheet.create({
