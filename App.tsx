@@ -6073,7 +6073,7 @@ export default function App() {
                   start="register"
                   email={route.params?.email}
                   onExit={() => navigation.goBack()}
-                  onSettings={() => navigation.navigate("Login", { role: "coach" })}
+                  onSignOut={() => navigation.navigate("AuthLanding")}
                 />
               )}
             </Stack.Screen>
@@ -6095,16 +6095,16 @@ export default function App() {
             })}
           >
             <Stack.Screen name="CoachApp" options={{ headerShown: false }}>
-              {() => (
+              {({ navigation }) => (
                 <CoachFlow
                   start="home"
                   name={session.user.name}
                   email={session.user.email}
-                  onSettings={() =>
-                    Alert.alert("Settings", session.user.email, [
-                      { text: "Cancel", style: "cancel" },
-                      { text: "Sign out", style: "destructive", onPress: signOut },
-                    ])
+                  onSignOut={signOut}
+                  onOpenSupport={(target) =>
+                    navigation.navigate(
+                      target === "password" ? "ChangePasswordApp" : target === "language" ? "LanguageApp" : target === "terms" ? "EnrollmentTermsApp" : "ContactUsApp",
+                    )
                   }
                 />
               )}
