@@ -1,11 +1,28 @@
 import { useRef, useState } from "react"
+import { useAccountData, type LearningSnapshot } from "./account-data"
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import Feather from "@expo/vector-icons/Feather"
 
 const TEAL = "#0AABA9"
-type Pose = "telescope" | "telescopeSmall" | "map" | "mapSmall" | "magnifier" | "star" | "clipboard" | "pointing" | "pointingSmall" | "turtle" | "owl" | "owlBooks" | "owlClipboard" | "owlIdea" | "owlMap" | "owlPointing" | "owlRunningBooks" | "owlMapSmall" | "owlPointingSmall" | "owlBooksSmall" | "dolphinWave" | "dolphinWaveSmall" | "dolphinBook" | "dolphinWorkSmall" | "dolphinTalk" | "dolphinTalkSmall" | "dolphinPuzzle" | "dolphinPointing" | "dolphinPointingSmall" | "foxGenerated" | "beeGenerated"
+type Pose = "fox-clipboard" | "fox-plan" | "fox-star" | "fox-puzzle" | "fox-pointing" | "turtle-build" | "turtle-clipboard" | "turtle-star" | "turtle-plan" | "turtle-pointing" | "bee-books" | "bee-clipboard" | "bee-idea" | "bee-map" | "bee-pointing" | "telescope" | "telescopeSmall" | "map" | "mapSmall" | "magnifier" | "star" | "clipboard" | "pointing" | "pointingSmall" | "turtle" | "owl" | "owlBooks" | "owlClipboard" | "owlIdea" | "owlMap" | "owlPointing" | "owlRunningBooks" | "owlMapSmall" | "owlPointingSmall" | "owlBooksSmall" | "dolphinWave" | "dolphinWaveSmall" | "dolphinBook" | "dolphinWorkSmall" | "dolphinTalk" | "dolphinTalkSmall" | "dolphinPuzzle" | "dolphinPointing" | "dolphinPointingSmall"
 const ART: Record<Pose, number> = {
+  "fox-clipboard": require("../assets/mobile/learning-companion/fox-clipboard.png"),
+  "fox-plan": require("../assets/mobile/learning-companion/fox-plan.png"),
+  "fox-star": require("../assets/mobile/learning-companion/fox-star.png"),
+  "fox-puzzle": require("../assets/mobile/learning-companion/fox-puzzle.png"),
+  "fox-pointing": require("../assets/mobile/learning-companion/fox-pointing.png"),
+  "turtle-build": require("../assets/mobile/learning-companion/turtle-build.png"),
+  "turtle-clipboard": require("../assets/mobile/learning-companion/turtle-clipboard.png"),
+  "turtle-star": require("../assets/mobile/learning-companion/turtle-star.png"),
+  "turtle-plan": require("../assets/mobile/learning-companion/turtle-plan.png"),
+  "turtle-pointing": require("../assets/mobile/learning-companion/turtle-pointing.png"),
+  "bee-books": require("../assets/mobile/learning-companion/bee-books.png"),
+  "bee-clipboard": require("../assets/mobile/learning-companion/bee-clipboard.png"),
+  "bee-idea": require("../assets/mobile/learning-companion/bee-idea.png"),
+  "bee-map": require("../assets/mobile/learning-companion/bee-map.png"),
+  "bee-pointing": require("../assets/mobile/learning-companion/bee-pointing.png"),
+
   telescope: require("../assets/mobile/learning-companion/rabbit-telescope.png"),
   telescopeSmall: require("../assets/mobile/learning-companion/rabbit-telescope-small.png"),
   map: require("../assets/mobile/learning-companion/rabbit-map.png"),
@@ -35,8 +52,6 @@ const ART: Record<Pose, number> = {
   dolphinPuzzle: require("../assets/mobile/learning-companion/dolphin-puzzle.png"),
   dolphinPointing: require("../assets/mobile/learning-companion/dolphin-pointing.png"),
   dolphinPointingSmall: require("../assets/mobile/learning-companion/dolphin-pointing-small.png"),
-  foxGenerated: require("../assets/mobile/learning-companion/fox-generated.png"),
-  beeGenerated: require("../assets/mobile/learning-companion/bee-generated.png"),
 }
 
 type Section = { title: string; subtitle?: string; paragraphs?: string[]; bullets?: string[]; art?: Pose; artAfter?: boolean; paragraphsAfterBullets?: boolean }
@@ -80,7 +95,14 @@ function SectionBlock({ section }: { section: Section }) {
   )
 }
 
-export function LearningCompanionScreen({ navigation, childName, animal = "Rabbit" }: { navigation: any; childName: string; animal?: string }) {
+export function LearningCompanionScreen({navigation,childName}: {navigation:any;childName:string;animal?:string}) {
+  const {learning,loaded}=useAccountData()
+  const animal = learning?.companion?.primary_companion?.match(/Rabbit|Owl|Dolphin|Fox|Turtle|Bee/i)?.[0]
+  if(!animal)return <SafeAreaView style={styles.screen}><View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back" style={styles.back} onPress={()=>navigation.goBack()}><Feather name="arrow-left" size={20}/></Pressable><Text style={styles.headerTitle}>Learning Companion</Text></View><View style={styles.content}><Text style={styles.heading}>{childName.split(" ")[0]}'s Learning Companion</Text><Text style={styles.body}>{!loaded?"Loading learning records…":"Your child's companion will appear after the centre publishes enough learning observations."}</Text><Pressable accessibilityRole="button" style={styles.action} onPress={()=>navigation.navigate("ActivityRecordApp")}><Text style={styles.actionText}>View learning records</Text></Pressable></View></SafeAreaView>
+  const normalised=animal[0].toUpperCase()+animal.slice(1).toLowerCase()
+  return <CompanionReportPages key={`${childName}-${normalised}`} navigation={navigation} childName={childName} animal={normalised} learning={learning!}/>
+}
+function CompanionReportPages({ navigation, childName, animal, learning }: { navigation: any; childName: string; animal: string; learning:LearningSnapshot }) {
   const [page, setPage] = useState(0)
   const [history, setHistory] = useState<number[]>([])
   const [explainerOpen, setExplainerOpen] = useState(false)
@@ -230,8 +252,8 @@ export function LearningCompanionScreen({ navigation, childName, animal = "Rabbi
     },
     Fox: {
       role: "Creative Problem Solver",
-      poses: ["foxGenerated", "foxGenerated", "foxGenerated", "foxGenerated", "foxGenerated"],
-      small: ["foxGenerated", "foxGenerated", "foxGenerated"],
+      poses: ["fox-clipboard", "fox-plan", "fox-star", "fox-puzzle", "fox-pointing"],
+      small: ["fox-plan", "fox-star", "fox-puzzle"],
       summary: `Across recent ClassZ records, ${firstName} has often shown curiosity, creative thinking, and a willingness to explore different ways to solve problems.`,
       meaning: ["Your child may learn best when they can explore different ways to solve a problem. They may enjoy open-ended tasks, creative challenges, and opportunities to test ideas.", "They may show progress when they are encouraged to explain their thinking, try strategies, and review what works with others."],
       observed: ["Showing initiative", "Trying independently", "Asking questions", "Showing persistence"],
@@ -241,8 +263,8 @@ export function LearningCompanionScreen({ navigation, childName, animal = "Rabbi
     },
     Turtle: {
       role: "Steady Builder",
-      poses: ["turtle", "turtle", "turtle", "turtle", "turtle"],
-      small: ["turtle", "turtle", "turtle"],
+      poses: ["turtle-build", "turtle-clipboard", "turtle-star", "turtle-plan", "turtle-pointing"],
+      small: ["turtle-clipboard", "turtle-star", "turtle-plan"],
       summary: `Across recent ClassZ records, your child was often observed as showing persistence, staying focused, working carefully, and sometimes needing encouragement to start.`,
       meaning: ["Your child may learn best when they can take steady steps, and tasks feel clear and possible. They may make progress with small routines, gentle encouragement, careful practice, and space to build confidence.", "They may benefit from a predictable learning environment where tasks are broken down into manageable steps."],
       observed: ["Showing persistence", "Staying focused", "Working carefully", "Needing encouragement to start"],
@@ -252,8 +274,8 @@ export function LearningCompanionScreen({ navigation, childName, animal = "Rabbi
     },
     Bee: {
       role: "Focused Worker",
-      poses: ["beeGenerated", "beeGenerated", "beeGenerated", "beeGenerated", "beeGenerated"],
-      small: ["beeGenerated", "beeGenerated", "beeGenerated"],
+      poses: ["bee-books", "bee-clipboard", "bee-idea", "bee-map", "bee-pointing"],
+      small: ["bee-clipboard", "bee-idea", "bee-map"],
       summary: `Across recent ClassZ records, your child was often observed as staying focused, working carefully, checking mistakes carefully, and responding well to feedback.`,
       meaning: ["Your child may learn best with clear goals, steady routines, and tasks that allow them to concentrate. They may show progress through consistency, careful practice, and repeated effort.", "They may benefit from knowing what is expected, having clear instructions, and seeing small improvements over time."],
       observed: ["Staying focused", "Working carefully", "Following instructions carefully", "Showing persistence"],
@@ -307,10 +329,42 @@ export function LearningCompanionScreen({ navigation, childName, animal = "Rabbi
     },
   ] : []
 
-  const pages = variant ? variantPages : animal === "Owl" ? owlPages : rabbitPages
+  const templates = (variant ? variantPages : animal === "Owl" ? owlPages : rabbitPages).slice(0,5)
+  const records=learning.lessons.flatMap(l=>l.records||[])
+  const unique=(items:(string|undefined)[])=>[...new Set(items.filter((v):v is string=>!!v))]
+  const narrative=learning.companion?.narrative_json as any
+  const published=narrative?.sections||narrative?.ai_sections||{}
+  const copy=(key:string,fallback:string[])=>{
+    const section=published[key]
+    return section?.text?[String(section.text)]:section?.intro?[String(section.intro),...(section.action_points||[])]:fallback
+  }
+  const support=learning.companion?.supporting_companions||[]
+  const pages=templates.map((template,index)=>({...template,sections:(index===0?[
+    {title:animal,paragraphs:[template.sections[0]?.paragraphs?.[0]||"Learning Companion",`Based on ${learning.companion?.records_used||records.length} published learning observations.`]},
+    {title:"What this means",paragraphs:copy("your_child_at_a_glance",["This companion is a recent learning snapshot. It may change as more learning observations are added."])},
+    {title:"Often observed as",bullets:unique(records.flatMap(r=>r.observed||[])).slice(0,6)},
+    {title:"What may help them learn?",bullets:unique(records.map(r=>r.student_work_on)).slice(0,5)},
+    {title:"Parent reminder",paragraphs:["Learning Companion is not a diagnosis or personality label. It reflects recent learning observations and can change over time."]},
+  ]:index===1?[
+    {title:"A Recent Learning Portrait",paragraphs:copy("your_child_at_a_glance",[`${firstName}'s published observations are shown below.`])},
+    {title:`How ${firstName} Approaches Something New?`,paragraphs:copy("how_they_approach_learning",unique(records.flatMap(r=>r.observed||[])))},
+    {title:`How ${firstName} Responds to Challenge?`,paragraphs:copy("how_they_respond_along_the_way",unique(records.flatMap(r=>r.strongest_areas||[])))},
+    ...(support.length?[{title:"Supporting Patterns",paragraphs:support}]:[]),
+  ]:index===2?[
+    {title:`How ${firstName} Learns with Other People`,paragraphs:copy("how_they_respond_along_the_way",unique(records.flatMap(r=>r.observed||[])))},
+    {title:`How ${firstName} Responds to Guidance and Feedback`,paragraphs:copy("how_they_approach_learning",unique(records.map(r=>r.student_work_on)))},
+    {title:`Conditions That Bring Out ${firstName}'s Best`,bullets:unique(records.flatMap(r=>r.strongest_areas||[]))},
+  ]:index===3?[
+    {title:"What Parents May Notice at Home",paragraphs:copy("how_you_can_support_them",["Use the coach's suggestions below to support the next learning step at home."])},
+    {title:"Personalised Strategies",bullets:unique(records.map(r=>r.student_work_on))},
+  ]:[
+    {title:"What ClassZ Will Continue Observing?",bullets:unique(records.flatMap(r=>r.attention_areas||[]))},
+    {title:"Evidence and Confidence",paragraphs:copy("why_this_companion_fits",[`This snapshot is based on ${learning.companion?.records_used||records.length} recent learning observations.`,"Future observations may strengthen, refine or change this interpretation."])},
+    ...(support.length?[{title:"Supporting Patterns",paragraphs:support}]:[]),
+  ]).map((section,index)=>({...section,art:template.sections[index]?.art,artAfter:template.sections[index]?.artAfter,paragraphsAfterBullets:template.sections[index]?.paragraphsAfterBullets}))}))
   const current = pages[page]
   const actionLabel = current.action.replace(/\bAlex\b/g, firstName)
-  const introPage = page === 0 || (isRabbit && page === 5)
+  const introPage = page === 0
   const renderSection = (section: Section, index: number) => (
     <SectionBlock
       key={`${page}-${index}`}
@@ -329,7 +383,7 @@ export function LearningCompanionScreen({ navigation, childName, animal = "Rabbi
         accessibilityLabel={actionLabel}
         style={styles.action}
         onPress={() => {
-          if (page === 4) navigation.navigate("AppTabs", { screen: "Analytics" })
+          if (page >= pages.length - 1) navigation.navigate("AppTabs", { screen: "Analytics" })
           else if (isRabbit && page === 7) navigation.navigate("AppTabs", { screen: "Home" })
           else next(page + 1)
         }}
@@ -337,7 +391,7 @@ export function LearningCompanionScreen({ navigation, childName, animal = "Rabbi
         <Text style={styles.actionText}>{actionLabel}  →</Text>
       </Pressable>
       {!isRabbit || page < 6 ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Learn how it works" style={styles.secondary} onPress={() => isRabbit ? next(page === 5 ? 6 : 5) : setExplainerOpen(true)}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Learn how it works" style={styles.secondary} onPress={() => setExplainerOpen(true)}>
           <Text style={styles.secondaryText}>Learn how it works →</Text>
         </Pressable>
       ) : null}

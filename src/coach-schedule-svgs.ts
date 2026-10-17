@@ -97,4 +97,117 @@ export const COACH_SCHEDULE_SVGS = {
   star: normalizeSvg(`<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="13.9913" height="13.3556" viewBox="0 0 13.9913 13.3556" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path id="Star 1" d="M6.54356 0.286448C6.72397 -0.0954823 7.26736 -0.0954828 7.44776 0.286447L9.16868 3.92971C9.24156 4.08402 9.38811 4.19049 9.55739 4.21213L13.5541 4.72298C13.9731 4.77654 14.141 5.29333 13.8335 5.58293L10.9004 8.34545C10.7762 8.46245 10.7202 8.63473 10.7519 8.8024L11.5011 12.7614C11.5797 13.1764 11.1401 13.4958 10.7696 13.2929L7.2359 11.3569C7.08623 11.2749 6.90509 11.2749 6.75543 11.3569L3.22172 13.2929C2.85127 13.4958 2.41166 13.1764 2.4902 12.7614L3.23941 8.8024C3.27114 8.63473 3.21517 8.46245 3.09094 8.34545L0.157779 5.58293C-0.149709 5.29333 0.0182067 4.77654 0.437193 4.72298L4.43394 4.21213C4.60321 4.19049 4.74976 4.08402 4.82264 3.92971L6.54356 0.286448Z" fill="#222222"/>
 </svg>`),
+  info: normalizeSvg(`<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="information">
+<path id="Vector" d="M10.7501 2.45037C11.4501 1.86037 12.5801 1.86037 13.2601 2.45037L14.8401 3.80037C15.1401 4.05037 15.7101 4.26037 16.1101 4.26037H17.8101C18.8701 4.26037 19.7401 5.13037 19.7401 6.19037V7.89037C19.7401 8.29037 19.9501 8.85037 20.2001 9.15037L21.5501 10.7304C22.1401 11.4304 22.1401 12.5604 21.5501 13.2404L20.2001 14.8204C19.9501 15.1204 19.7401 15.6804 19.7401 16.0804V17.7804C19.7401 18.8404 18.8701 19.7104 17.8101 19.7104H16.1101C15.7101 19.7104 15.1501 19.9204 14.8501 20.1704L13.2701 21.5204C12.5701 22.1104 11.4401 22.1104 10.7601 21.5204L9.18007 20.1704C8.88007 19.9204 8.31007 19.7104 7.92007 19.7104H6.17007C5.11007 19.7104 4.24007 18.8404 4.24007 17.7804V16.0704C4.24007 15.6804 4.04007 15.1104 3.79007 14.8204L2.44007 13.2304C1.86007 12.5404 1.86007 11.4204 2.44007 10.7304L3.79007 9.14037C4.04007 8.84037 4.24007 8.28037 4.24007 7.89037V6.20037C4.24007 5.14037 5.11007 4.27037 6.17007 4.27037H7.90007C8.30007 4.27037 8.86007 4.06037 9.16007 3.81037L10.7501 2.45037Z" stroke-width="1.15909" stroke-linecap="round" stroke-linejoin="round" stroke="white"/>
+<path id="Vector_2" d="M12 8.12994V12.9599" stroke-width="1.15909" stroke-linecap="round" stroke-linejoin="round" stroke="white"/>
+<path id="Vector_3" d="M11.9945 16.0001H12.0035" stroke-width="1.54545" stroke-linecap="round" stroke-linejoin="round" stroke="white"/>
+<path id="Vector_4" opacity="0" d="M0.386364 0.386364H23.6136V23.6136H0.386364V0.386364Z" stroke-width="0.772727" stroke="white"/>
+</g>
+</svg>`),
+  camera: normalizeSvg(`<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="camera">
+<path id="Vector" d="M5.63333 18.3333H14.3667C16.6667 18.3333 17.5833 16.925 17.6917 15.2083L18.125 8.325C18.2417 6.525 16.8083 5 15 5C14.4917 5 14.025 4.70833 13.7917 4.25833L13.1917 3.05C12.8083 2.29167 11.8083 1.66667 10.9583 1.66667H9.05C8.19167 1.66667 7.19167 2.29167 6.80833 3.05L6.20833 4.25833C5.975 4.70833 5.50833 5 5 5C3.19167 5 1.75833 6.525 1.875 8.325L2.30833 15.2083C2.40833 16.925 3.33333 18.3333 5.63333 18.3333Z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke="#B0B0B0"/>
+<path id="Vector_2" d="M8.75 6.66667H11.25" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke="#B0B0B0"/>
+<path id="Vector_3" d="M10 15C11.4917 15 12.7083 13.7833 12.7083 12.2917C12.7083 10.8 11.4917 9.58333 10 9.58333C8.50833 9.58333 7.29167 10.8 7.29167 12.2917C7.29167 13.7833 8.50833 15 10 15Z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke="#B0B0B0"/>
+<g id="Vector_4" opacity="0">
+</g>
+</g>
+</svg>`),
+  send: normalizeSvg(`<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="send-2">
+<path id="Vector" d="M16.14 2.96L7.11 5.96C1.04 7.99 1.04 11.3 7.11 13.32L9.79 14.21L10.68 16.89C12.7 22.96 16.02 22.96 18.04 16.89L21.05 7.87C22.39 3.82 20.19 1.61 16.14 2.96ZM16.46 8.34L12.66 12.16C12.51 12.31 12.32 12.38 12.13 12.38C11.94 12.38 11.75 12.31 11.6 12.16C11.31 11.87 11.31 11.39 11.6 11.1L15.4 7.28C15.69 6.99 16.17 6.99 16.46 7.28C16.75 7.57 16.75 8.05 16.46 8.34Z" fill="white"/>
+<g id="Vector_2" opacity="0">
+</g>
+</g>
+</svg>`),
+  warning: normalizeSvg(`<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Warning / Triangle_Warning">
+<path id="Vector" d="M11.0018 8.25005V11.9167M4.01579 13.9332C3.18214 15.3771 2.76544 16.0994 2.8277 16.6918C2.88201 17.2085 3.15322 17.678 3.57357 17.9834C4.05532 18.3334 4.88845 18.3334 6.55461 18.3334H15.449C17.1151 18.3334 17.9481 18.3334 18.4299 17.9834C18.8502 17.678 19.1216 17.2085 19.1759 16.6918C19.2381 16.0994 18.8216 15.3771 17.9879 13.9332L13.5423 6.23321C12.7087 4.78929 12.2917 4.06745 11.7475 3.82517C11.2728 3.61383 10.7305 3.61383 10.2558 3.82517C9.71184 4.06735 9.29509 4.78919 8.46213 6.23191L4.01579 13.9332ZM11.0483 14.6667V14.7584L10.9561 14.7586V14.6667H11.0483Z" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke="#EB913B"/>
+</g>
+</svg>`),
+  warningSm: normalizeSvg(`<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Warning / Triangle_Warning">
+<path id="Vector" d="M10.0016 7.50005V10.8334M3.65072 12.6666C2.89285 13.9792 2.51403 14.6358 2.57064 15.1743C2.62001 15.6441 2.86656 16.0709 3.2487 16.3485C3.68666 16.6667 4.44405 16.6667 5.95874 16.6667H14.0445C15.5592 16.6667 16.3165 16.6667 16.7544 16.3485C17.1366 16.0709 17.3832 15.6441 17.4326 15.1743C17.4892 14.6358 17.1105 13.9792 16.3526 12.6666L12.3112 5.66655C11.5533 4.3539 11.1742 3.69769 10.6795 3.47742C10.248 3.2853 9.75497 3.2853 9.32345 3.47742C8.82895 3.69759 8.45008 4.35381 7.69285 5.66537L3.65072 12.6666ZM10.0439 13.3334V13.4167L9.96012 13.4169V13.3334H10.0439Z" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke="#EB913B"/>
+</g>
+</svg>`),
+  folder: normalizeSvg(`<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="folder-2">
+<path id="Vector" d="M14.6667 7.33343V11.3334C14.6667 14.0001 14 14.6668 11.3334 14.6668H4.6667C2.00003 14.6668 1.33337 14.0001 1.33337 11.3334V4.66676C1.33337 2.0001 2.00003 1.33343 4.6667 1.33343H5.6667C6.6667 1.33343 6.8867 1.62676 7.2667 2.13343L8.2667 3.46676C8.52003 3.8001 8.6667 4.0001 9.33337 4.0001H11.3334C14 4.0001 14.6667 4.66676 14.6667 7.33343Z" stroke-width="1.15909" stroke-miterlimit="10" stroke="#5E5E5E"/>
+<path id="Vector_2" d="M5.33334 1.33343H11.3333C12.6667 1.33343 13.3333 2.0001 13.3333 3.33343V4.25343" stroke-width="1.15909" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round" stroke="#5E5E5E"/>
+<g id="Vector_3" opacity="0">
+</g>
+</g>
+</svg>`),
+  menuBoard: normalizeSvg(`<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="menu-board">
+<path id="Vector" d="M14.6227 4.50633L12.376 13.5263C12.216 14.1997 11.616 14.6663 10.9227 14.6663H2.16265C1.15599 14.6663 0.435996 13.6796 0.735996 12.713L3.54266 3.69969C3.73599 3.07302 4.316 2.63963 4.96933 2.63963H13.1693C13.8027 2.63963 14.3293 3.0263 14.5493 3.55963C14.676 3.8463 14.7027 4.173 14.6227 4.50633Z" stroke-width="1.15909" stroke-miterlimit="10" stroke="#5E5E5E"/>
+<path id="Vector_2" d="M10.6697 14.667H13.8564C14.7164 14.667 15.3897 13.9403 15.3297 13.0803L14.6697 4.00031" stroke-width="1.15909" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round" stroke="#5E5E5E"/>
+<path id="Vector_3" d="M6.45037 4.25328L7.14371 1.37331" stroke-width="1.15909" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round" stroke="#5E5E5E"/>
+<path id="Vector_4" d="M10.9191 4.25989L11.5458 1.36657" stroke-width="1.15909" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round" stroke="#5E5E5E"/>
+<path id="Vector_5" d="M5.13603 7.99977H10.4694" stroke-width="1.15909" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round" stroke="#5E5E5E"/>
+<path id="Vector_6" d="M4.46875 10.6664H9.80208" stroke-width="1.15909" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round" stroke="#5E5E5E"/>
+<g id="Vector_7" opacity="0">
+</g>
+</g>
+</svg>`),
+  cloudUpload: normalizeSvg(`<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="File / Cloud_Upload">
+<path id="Vector" d="M12 16V10M15 12L12 10L9 12M23 15C23 12.7909 21.2091 11 19 11C18.9764 11 18.9532 11.0002 18.9297 11.0006C18.4447 7.60802 15.5267 5 12 5C9.20335 5 6.79019 6.64004 5.66895 9.01082C3.06206 9.18144 1 11.3498 1 13.9999C1 16.7613 3.23858 19.0001 6 19.0001L19 19C21.2091 19 23 17.2091 23 15Z" stroke-linecap="round" stroke-linejoin="round" stroke="#5E5E5E"/>
+</g>
+</svg>`),
+  closeMd: normalizeSvg(`<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Menu / Close_MD">
+<path id="Vector" d="M10.5 10.5L3.5 3.5M10.5 3.5L3.5 10.5" stroke-linecap="round" stroke-linejoin="round" stroke="#222222"/>
+</g>
+</svg>`),
+  tickOn: normalizeSvg(`<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="18.5455" height="18.5455" viewBox="0 0 18.5455 18.5455" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="tick-circle">
+<path id="Vector" d="M9.27273 17C13.5227 17 17 13.5227 17 9.27275C17 5.02275 13.5227 1.54548 9.27273 1.54548C5.02273 1.54548 1.54545 5.02275 1.54545 9.27275C1.54545 13.5227 5.02273 17 9.27273 17Z" stroke-width="1.15909" stroke-linecap="round" stroke-linejoin="round" stroke="#B0B0B0"/>
+<path id="Vector_2" d="M5.98864 9.27269L8.17545 11.4595L12.5568 7.08587" stroke-width="1.15909" stroke-linecap="round" stroke-linejoin="round" stroke="#0ABAB5"/>
+<path id="Vector_3" opacity="0" d="M0.386364 0.386364H18.1591V18.1591H0.386364V0.386364Z" stroke-width="0.772727" stroke="#B0B0B0"/>
+</g>
+</svg>`),
+  tickOff: normalizeSvg(`<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="18.5455" height="18.5455" viewBox="0 0 18.5455 18.5455" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="tick-circle">
+<path id="Vector" d="M9.27273 17C13.5227 17 17 13.5227 17 9.27275C17 5.02275 13.5227 1.54548 9.27273 1.54548C5.02273 1.54548 1.54545 5.02275 1.54545 9.27275C1.54545 13.5227 5.02273 17 9.27273 17Z" stroke-width="1.15909" stroke-linecap="round" stroke-linejoin="round" stroke="#B0B0B0"/>
+<g id="Vector_2">
+</g>
+<path id="Vector_3" opacity="0" d="M0.386364 0.386364H18.1591V18.1591H0.386364V0.386364Z" stroke-width="0.772727" stroke="#B0B0B0"/>
+</g>
+</svg>`),
+  optionCheck: normalizeSvg(`<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="11" height="7" viewBox="0 0 11 7" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path id="Vector" d="M0.500004 3.5L3.82942 6.5L10.5 0.500004" stroke-linecap="round" stroke-linejoin="round" stroke="#222222"/>
+</svg>`),
+  selectArrow: normalizeSvg(`<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="18.5455" height="18.5455" viewBox="0 0 18.5455 18.5455" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="arrow-down">
+<path id="Vector" d="M15.3928 6.91631L10.3546 11.9545C9.75959 12.5495 8.78595 12.5495 8.19095 11.9545L3.15277 6.91631" stroke-width="1.15909" stroke-miterlimit="10" stroke-linecap="round" stroke-linejoin="round" stroke="#222222"/>
+<g id="Vector_2" opacity="0">
+</g>
+</g>
+</svg>`),
+  checkWhite: normalizeSvg(`<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Interface / Check">
+<path id="Vector" d="M2.5 4.89278L4.26777 6.66055L7.80311 3.125" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round" stroke="white"/>
+</g>
+</svg>`),
+  peopleSm: normalizeSvg(`<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="people">
+<g id="Group">
+<path id="Vector" d="M12 4.77334C11.96 4.76667 11.9133 4.76667 11.8733 4.77334C10.9533 4.74 10.22 3.98667 10.22 3.05333C10.22 2.1 10.9867 1.33333 11.94 1.33333C12.8933 1.33333 13.66 2.10667 13.66 3.05333C13.6533 3.98667 12.92 4.74 12 4.77334Z" stroke-linecap="round" stroke-linejoin="round" stroke="#222222"/>
+<path id="Vector_2" d="M11.3133 9.62667C12.2267 9.78001 13.2333 9.62001 13.94 9.14667C14.88 8.52001 14.88 7.49334 13.94 6.86667C13.2267 6.39334 12.2067 6.23334 11.2933 6.39334" stroke-linecap="round" stroke-linejoin="round" stroke="#222222"/>
+</g>
+<g id="Group_2">
+<path id="Vector_3" d="M3.98 4.77334C4.02 4.76667 4.06667 4.76667 4.10667 4.77334C5.02667 4.74 5.76 3.98667 5.76 3.05333C5.76 2.1 4.99333 1.33333 4.04 1.33333C3.08667 1.33333 2.32 2.10667 2.32 3.05333C2.32667 3.98667 3.06 4.74 3.98 4.77334Z" stroke-linecap="round" stroke-linejoin="round" stroke="#222222"/>
+<path id="Vector_4" d="M4.66667 9.62667C3.75333 9.78001 2.74667 9.62001 2.04 9.14667C1.1 8.52001 1.1 7.49334 2.04 6.86667C2.75334 6.39334 3.77333 6.23334 4.68667 6.39334" stroke-linecap="round" stroke-linejoin="round" stroke="#222222"/>
+</g>
+<g id="Group_3">
+<path id="Vector_5" d="M8 9.75334C7.96 9.74667 7.91333 9.74667 7.87333 9.75334C6.95333 9.72 6.22 8.96667 6.22 8.03334C6.22 7.08 6.98667 6.31333 7.94 6.31333C8.89333 6.31333 9.66 7.08667 9.66 8.03334C9.65333 8.96667 8.92 9.72667 8 9.75334Z" stroke-linecap="round" stroke-linejoin="round" stroke="#222222"/>
+<path id="Vector_6" d="M6.06 11.8533C5.12 12.48 5.12 13.5067 6.06 14.1333C7.12667 14.8467 8.87333 14.8467 9.94 14.1333C10.88 13.5067 10.88 12.48 9.94 11.8533C8.88 11.1467 7.12667 11.1467 6.06 11.8533Z" stroke-linecap="round" stroke-linejoin="round" stroke="#222222"/>
+</g>
+<g id="Vector_7" opacity="0">
+</g>
+</g>
+</svg>`),
+  female: `<svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="7.5" cy="5.5" r="4.25" stroke="#F178B6" stroke-width="1.5"/><path d="M7.5 9.75V14.25M5 12H10" stroke="#F178B6" stroke-width="1.5" stroke-linecap="round"/></svg>`,
 } as const

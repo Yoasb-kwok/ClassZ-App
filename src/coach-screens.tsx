@@ -1,16 +1,22 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
 import { Alert, BackHandler, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, type ImageSourcePropType, type KeyboardTypeOptions } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import Feather from "@expo/vector-icons/Feather"
+import { BlurTargetView, BlurView } from "expo-blur"
+import { apiRequest, assetUrl, errorMessage } from "./api"
+import { coachClasses, coachSavedState, type CoachBootstrap } from "./coach-api"
 import { FONT } from "./typography"
 import { pickProfileImage } from "./pick-profile-image"
-import { AllEnrollment, CentreProfile, ClassDetail, CoachSchedule, findClass, type CoachClass, type ScheduleView } from "./coach-schedule-screens"
+import { CoachScheduleContext, useCoachSchedule, AllEnrollment, Announce, Attendance, CentreProfile, CheckIns, ClassDetail, CoachSchedule, Feedback, feedbackKey, findClass, LearningRecord, PendingFeedback, pendingFeedback, ProgramDetail, Programs, rosterOf, SAMPLE_ANNOUNCEMENTS, StudentList, studentKey, type Announcement, type CoachClass, type LearningRecordValue, type ScheduleView, type Student } from "./coach-schedule-screens"
+
+const CoachBlurContext=createContext<RefObject<View|null>|undefined>(undefined)
+function ModalShade(){const target=useContext(CoachBlurContext);return <BlurView pointerEvents="none" style={StyleSheet.absoluteFill} blurTarget={target} blurMethod="dimezisBlurViewSdk31Plus" intensity={18} tint="dark"/>}
 
 const TEAL = "#0ABAB5"
 const COUNTRY_CODES = ["+852", "+853", "+86", "+886", "+65"]
 const COLLAPSED_ACCREDITATION_YEARS = 1
 const COLLAPSED_EXPERIENCES = 2
-const CENTRE_LOGO = require("../assets/figma/coach/centre-logo.png")
+const CENTRE_LOGO = require("../assets/figma/coach/schedule/centre-logo-lg.png")
 const SAMPLE_AVATAR = require("../assets/figma/coach/avatar.jpg")
 
 type Centre = { id: string; name: string; district: string }
@@ -28,10 +34,11 @@ const centreOf = (id: string) => DEMO_CENTRES.find((c) => c.id === id)
 type Accreditation = { id: string; skill: string; result: string; year: string; organisation: string }
 type Experience = { id: string; position: string; from: string; to: string; workplace: string }
 type CoachProfile = {
-  fullName: string; displayName: string; country: string; phone: string; email: string; hkid: string; avatar: string | number | null
-  location: string; joinedYear: number; affiliation: string; bio: string; skills: string[]; accreditations: Accreditation[]; experiences: Experience[]
+  fullName: string; displayName: string; country: string; phone: string; email: string; hkid: string; avatar: string | ImageSourcePropType | null
+  activities?: boolean; promotions?: boolean; location: string; joinedYear: number; affiliation: string; bio: string; skills: string[]; accreditations: Accreditation[]; experiences: Experience[]
 }
-type Screen = "register" | "home" | "profile" | "addAccreditation" | "addExperience" | "centres" | "settings" | "account" | "centre" | "schedule" | "enrollments" | "classDetail"
+type Screen = "register" | "home" | "profile" | "addAccreditation" | "addExperience" | "centres" | "settings" | "account" | "centre" | "schedule" | "enrollments" | "classDetail" | "students" | "announce" | "programs" | "programDetail"
+  | "checkins" | "attendance" | "pendingFeedback" | "pendingStudents" | "feedback" | "learningRecord"
 
 let nextId = 0
 const uid = () => `local-${Date.now()}-${nextId++}`
@@ -55,7 +62,7 @@ const emptyProfile = (email: string): CoachProfile => ({ ...sampleProfile("", em
 const MONTH_YEAR = /^(0[1-9]|1[0-2])\/(\d{4})$/
 const toMonths = (v: string) => { const m = MONTH_YEAR.exec(v.trim()); return m ? Number(m[2]) * 12 + Number(m[1]) - 1 : null }
 function monthsOf(e: Experience) {
-  const from = toMonths(e.from), to = toMonths(e.to)
+  const now = new Date(), from = toMonths(e.from), to = /^present$/i.test(e.to.trim()) ? now.getFullYear() * 12 + now.getMonth() : toMonths(e.to)
   return from == null || to == null ? 0 : Math.max(0, to - from)
 }
 const yearOf = (e: Experience) => MONTH_YEAR.exec(e.from.trim())?.[2] ?? e.from
@@ -74,35 +81,70 @@ function normaliseAccount(form: AccountForm): { value: AccountForm; problem: str
   return { value, problem }
 }
 
-export function CoachFlow({ start, name = "", email = "", onExit, onSignOut, onOpenSupport }: { start: "register" | "home"; name?: string; email?: string; onExit?: () => void; onSignOut: () => void; onOpenSupport?: (target: CoachSupportTarget) => void }) {
+type CoachFlowProps = { start: "register" | "home"; token?: string; name?: string; email?: string; onExit?: () => void; onSignOut: () => void; onOpenSupport?: (target: CoachSupportTarget) => void }
+export function CoachFlow(props: CoachFlowProps) {
+  const blurTarget=useRef<View|null>(null)
+  const [data,setData]=useState<CoachBootstrap|null>(null)
+  const [problem,setProblem]=useState("")
+  const reload=async()=>{ if(!props.token)return; const r=await apiRequest<{data:CoachBootstrap}>("/coach/bootstrap",{token:props.token});setData(r.data);setProblem("") }
+  useEffect(()=>{reload().catch(e=>setProblem(errorMessage(e)))},[props.token])
+  const classes=useMemo(()=>data?coachClasses(data):[],[data])
+  if(props.token&&!data)return <Page title="Profile"><Text style={s.emptyTitle}>{problem||"Loading your coach account…"}</Text>{!!problem&&<Primary label="Retry" onPress={()=>reload().catch(e=>setProblem(errorMessage(e)))} />}</Page>
+  return <CoachBlurContext.Provider value={blurTarget}><BlurTargetView ref={blurTarget} style={{flex:1}}><CoachScheduleContext.Provider value={props.token?classes:null}><CoachFlowContent {...props} data={data} reload={reload}/></CoachScheduleContext.Provider></BlurTargetView></CoachBlurContext.Provider>
+}
+function CoachFlowContent({ start, token, data, reload, name = "", email = "", onExit, onSignOut, onOpenSupport }: CoachFlowProps & {data:CoachBootstrap|null;reload:()=>Promise<void>}) {
+  const {findClass,pendingFeedback}=useCoachSchedule()
+  const api=async(path:string,method="POST",body?:unknown)=>apiRequest(path,{token,method,body})
+  const attempt=async(action:()=>Promise<void>)=>{try{await action()}catch(e){Alert.alert("Unable to save",errorMessage(e))}}
+
   const [stack, setStack] = useState<Screen[]>([start])
-  const [profile, setProfile] = useState<CoachProfile>(() => start === "register" ? emptyProfile(email) : sampleProfile(name || "Athena Young", email))
+  const [profile, setProfile] = useState<CoachProfile>(() => data ? {...emptyProfile(email),...data.profile,avatar:assetUrl(data.profile.avatar),displayName:data.profile.displayName||name} as CoachProfile : start === "register" ? emptyProfile(email) : sampleProfile(name || "Athena Young", email))
   const screen = stack[stack.length - 1]
   const open = (next: Screen) => setStack((prev) => [...prev, next])
   const back = () => { if (stack.length > 1) setStack((prev) => prev.slice(0, -1)); else onExit?.() }
-  const patch = (next: Partial<CoachProfile>) => setProfile((prev) => ({ ...prev, ...next }))
-  const [connections, setConnections] = useState<Connection[]>(() => start === "register" ? [] : [
+  const patch = (next: Partial<CoachProfile>) => {
+    if(!token){setProfile(prev=>({...prev,...next}));return}
+    void attempt(async()=>{const r=await apiRequest<{data:Partial<CoachProfile>}>("/coach/profile",{token,method:"PATCH",body:next});setProfile(prev=>({...prev,...r.data,avatar:typeof r.data.avatar==="string"?assetUrl(r.data.avatar):r.data.avatar??prev.avatar}))})
+  }
+  const [connections, setConnections] = useState<Connection[]>(() => data ? data.connections.map(c=>({id:String(c.id),centreId:String(c.centre_id),role:c.role,status:c.status})) : start === "register" ? [] : [
     { id: uid(), centreId: DEMO_CENTRES[0].id, role: "Manager", status: "invited" },
     { id: uid(), centreId: DEMO_CENTRES[0].id, role: "Coach", status: "invited" },
   ])
+  const [invitation,setInvitation]=useState<Connection|null>(null)
   const [pending, setPending] = useState<{ centreId: string; apply: () => void } | null>(null)
   function guardSwitch(centreId: string, apply: () => void) {
     const current = connections.find((c) => c.status === "connected")
-    if (current && current.centreId !== centreId) setPending({ centreId, apply: () => { setConnections((prev) => prev.filter((c) => !(c.status === "connected" && c.centreId === current.centreId))); apply() } })
+    if (current && current.centreId !== centreId) setPending({ centreId, apply: () => { if(!token)setConnections((prev) => prev.filter((c) => !(c.status === "connected" && c.centreId === current.centreId))); apply() } })
     else apply()
   }
-  const accept = (c: Connection) => guardSwitch(c.centreId, () => setConnections((prev) => prev.map((v) => v.id === c.id ? { ...v, status: "connected" } : v)))
-  const connect = (centre: Centre) => guardSwitch(centre.id, () => setConnections((prev) => [...prev, { id: uid(), centreId: centre.id, role: "Coach", status: "requested" }]))
+  const centres:Centre[]=data?data.centres.map(c=>({...c,id:String(c.id)})):DEMO_CENTRES
+  const accept = (c: Connection) => guardSwitch(c.centreId, () => { if(token)void attempt(async()=>{await api(`/coach/connections/${c.id}/respond`,"POST",{accept:true});await reload()});else setConnections(prev=>prev.map(v=>v.id===c.id?{...v,status:"connected"}:v)) })
+  const connect = (centre: Centre) => guardSwitch(centre.id, () => { if(token)void attempt(async()=>{await api("/coach/connections","POST",{center_id:Number(centre.id)});await reload()});else setConnections(prev=>[...prev,{id:uid(),centreId:centre.id,role:"Coach",status:"requested"}]) })
   const support = (target: CoachSupportTarget) => onOpenSupport ? onOpenSupport(target) : Alert.alert("Please log in first", "This setting is available after you log in.")
   const [centreId, setCentreId] = useState<string | null>(null)
   const [classId, setClassId] = useState<string | null>(null)
   const [cancelled, setCancelled] = useState<ReadonlySet<string>>(() => new Set())
-  const [attended, setAttended] = useState<ReadonlySet<string>>(() => new Set())
+  const [checkedIn, setCheckedIn] = useState<Record<string, string[]>>({})
+  const [feedbackDone, setFeedbackDone] = useState<ReadonlySet<string>>(() => new Set())
+  const [studentName, setStudentName] = useState("")
+  const [selectedLesson, setSelectedLesson] = useState<CoachClass | null>(null)
+  const [recordClassId,setRecordClassId]=useState<string|null>(null)
+  const [recordLesson, setRecordLesson] = useState<number | null>(null)
+  const [savedRecords, setSavedRecords] = useState<Record<string, LearningRecordValue>>({})
   const [disconnecting, setDisconnecting] = useState(false)
   const [scheduleView, setScheduleView] = useState<ScheduleView>(() => { const now = new Date(); return { tab: "calendar", month: new Date(now.getFullYear(), now.getMonth(), 1), selected: new Date(now.getFullYear(), now.getMonth(), now.getDate()) } })
-  const openClass = (c: CoachClass) => { setClassId(c.id); open("classDetail") }
+  const [programTitle, setProgramTitle] = useState("")
+  const [announcements, setAnnouncements] = useState<Record<string, Announcement[]>>({})
+  const openClass = (c: CoachClass, next: Screen = "classDetail") => { setClassId(c.id); setSelectedLesson(c); open(next) }
   const openCentre = (id: string) => { setCentreId(id); open("centre") }
+  const openFeedback = (c: CoachClass, st: Student) => { setClassId(c.id); setSelectedLesson(c); setStudentName(studentKey(st)); setRecordClassId(null); setRecordLesson(null); open("feedback") }
+  const pendingList = useMemo(() => pendingFeedback(cancelled, feedbackDone), [cancelled, feedbackDone])
 
+  useEffect(()=>{
+    if(!data)return
+    setConnections(data.connections.map(c=>({id:String(c.id),centreId:String(c.centre_id),role:c.role,status:c.status})))
+    const live=coachSavedState(data,coachClasses(data));setSavedRecords(live.records);setCheckedIn(live.checked);setFeedbackDone(live.done);setAnnouncements(live.announcements)
+  },[data])
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => { if (stack.length > 1) { back(); return true } return false })
     return () => sub.remove()
@@ -116,21 +158,48 @@ export function CoachFlow({ start, name = "", email = "", onExit, onSignOut, onO
   if (screen === "addExperience") return <AddForm title="Add Experience" onBack={back} fields={[
     [{ key: "position", placeholder: "Position" }], [{ key: "from", placeholder: "From (MM/YYYY)", maxLength: 7, validate: (v) => toMonths(v) == null ? "Use MM/YYYY for From, e.g. 01/2022." : "" }, { key: "to", placeholder: "To (MM/YYYY)", maxLength: 7, validate: (v, all) => { const to = toMonths(v), from = toMonths(all.from); return to == null ? "Use MM/YYYY for To, e.g. 11/2022." : from != null && to < from ? "To must be after From." : "" } }], [{ key: "workplace", placeholder: "Name of workplace" }],
   ]} onConfirm={(v) => { patch({ experiences: [{ id: uid(), position: v.position, from: v.from, to: v.to, workplace: v.workplace }, ...profile.experiences] }); back() }} />
-  const centre = centreId ? centreOf(centreId) : undefined
+  const centre = centreId ? centres.find(c=>c.id===centreId) : undefined
   if (screen === "centre" && centre) return <>
-    <CentreProfile centreName={centre.name} cancelled={cancelled} onBack={back} onSchedule={() => open("schedule")} onOpenClass={openClass} onDisconnect={() => setDisconnecting(true)} />
-    <SwitchWarning visible={disconnecting} message="Disconnecting will revoke your permission immediately." onContinue={() => { setDisconnecting(false); setConnections((prev) => prev.filter((c) => c.centreId !== centre.id)); back() }} onBack={() => setDisconnecting(false)} />
+    <CentreProfile centreName={centre.name} cancelled={cancelled} checked={checkedIn} pending={pendingList} onBack={back} onPrograms={() => open("programs")} onSchedule={() => open("schedule")} onAnnounce={(c) => openClass(c, "announce")} onOpenClass={(c) => openClass(c)}
+      onCheckIns={() => open("checkins")} onPendingFeedback={() => open("pendingFeedback")} onFeedback={openFeedback} onDisconnect={() => setDisconnecting(true)} />
+    <SwitchWarning visible={disconnecting} variant="disconnect" onContinue={() => { setDisconnecting(false); if(token)void attempt(async()=>{await api(`/coach/connections/${centre.id}`,"DELETE");await reload();back()});else{setConnections((prev) => prev.filter((c) => c.centreId !== centre.id));back()} }} onBack={() => setDisconnecting(false)} />
   </>
-  if (screen === "schedule") return <CoachSchedule view={scheduleView} cancelled={cancelled} onChange={setScheduleView} onBack={back} onOpenClass={openClass} onViewAll={() => open("enrollments")} />
-  if (screen === "enrollments") return <AllEnrollment cancelled={cancelled} onBack={back} onOpenClass={openClass} />
-  const lesson = screen === "classDetail" && classId ? findClass(classId, cancelled) : null
-  if (lesson) return <ClassDetail item={lesson} coachName={profile.displayName || profile.fullName} coachAvatar={profile.avatar == null ? null : typeof profile.avatar === "number" ? profile.avatar : { uri: profile.avatar }} attended={attended.has(lesson.id)}
-    onBack={back} onAttendance={() => setAttended((prev) => new Set(prev).add(lesson.id))} onCancel={() => { back(); setCancelled((prev) => new Set(prev).add(lesson.id)) }} />
-  const warning = <SwitchWarning visible={!!pending} onContinue={() => { pending?.apply(); setPending(null) }} onBack={() => setPending(null)} />
-  if (screen === "centres") return <>{<CentreSearch connections={connections} onBack={back} onConnect={connect} />}{warning}</>
+  if (screen === "schedule") return <CoachSchedule view={scheduleView} cancelled={cancelled} onChange={setScheduleView} onBack={back} onOpenClass={(c) => openClass(c)} onViewAll={() => open("enrollments")}
+    onDelete={(c) => {if(token)void attempt(async()=>{await api(`/coach/classes/${c.id}/cancel`);await reload()});else setCancelled(prev=>new Set(prev).add(c.id))}} />
+  if (screen === "enrollments") return <AllEnrollment cancelled={cancelled} onBack={back} onOpenClass={(c) => openClass(c)} />
+  if (screen === "programs") return <Programs cancelled={cancelled} onBack={back} onOpen={(title) => { setProgramTitle(title); open("programDetail") }} />
+  if (screen === "programDetail") return <ProgramDetail title={programTitle} cancelled={cancelled} onBack={back} />
+  if (screen === "checkins") return <CheckIns cancelled={cancelled} onBack={back} onOpen={(c) => openClass(c, "attendance")} />
+  if (screen === "pendingFeedback") return <PendingFeedback pending={pendingList} onBack={back} onOpen={(c) => openClass(c, "pendingStudents")} />
+  const coachName = profile.displayName || profile.fullName
+  const coachAvatar = profile.avatar == null ? null : typeof profile.avatar === "string" ? { uri: profile.avatar } : profile.avatar
+  const lesson = classId && !cancelled.has(classId) ? (selectedLesson?.id === classId ? selectedLesson : findClass(classId, cancelled)) : null
+  const student = lesson ? rosterOf(lesson).find((st) => studentKey(st) === studentName) : undefined
+  if (lesson && screen === "students") return <StudentList item={lesson} onBack={back} onOpen={(st) => openFeedback(lesson, st)} />
+  if (lesson && screen === "attendance") return <Attendance item={lesson} checked={checkedIn[lesson.id] ?? []} onBack={back}
+    onVerify={token?async(code,enrollment_id)=>{await api(`/coach/classes/${lesson.id}/check-in`,"POST",{code,enrollment_id});await reload()}:undefined}
+    onCheckIn={(name) => setCheckedIn((prev) => ({ ...prev, [lesson.id]: [...(prev[lesson.id] ?? []), name] }))} />
+  if (lesson && screen === "pendingStudents") return <StudentList title="Pending Feedback" item={lesson} students={rosterOf(lesson).filter((st) => !feedbackDone.has(feedbackKey(lesson, st)))} onBack={back} onOpen={(st) => openFeedback(lesson, st)} />
+  if (lesson && student && screen === "feedback") return <Feedback item={lesson} student={student} coachName={coachName} coachAvatar={coachAvatar} onBack={back} recordSubmitted={feedbackDone.has(feedbackKey(lesson, student))} onRecord={() => { setRecordClassId(null); setRecordLesson(null); open("learningRecord") }}
+    history={token&&data?coachClasses(data).filter(c=>c.id!==lesson.id&&data.classes.find(r=>String(r.id)===c.id)?.records.some((r:any)=>Number(r.profile_id)===student.profileId)&&data.classes.find(r=>String(r.id)===c.id)?.program_code===data.classes.find(r=>String(r.id)===lesson.id)?.program_code):[]}
+    onViewHistory={c=>{setRecordClassId(c.id);setRecordLesson(c.lesson);open("learningRecord")}}
+    onViewRecord={(n) => { setRecordClassId(null); setRecordLesson(n); open("learningRecord") }} />
+  const recordItem=recordClassId?findClass(recordClassId,cancelled)??lesson:lesson
+  const recordStudent=recordItem&&student?rosterOf(recordItem).find(s=>s.profileId===student.profileId&&s.name===student.name)??student:student
+  if (lesson && student && recordItem && recordStudent && screen === "learningRecord") return <LearningRecord key={`${lesson.id}-${student.name}-${recordLesson ?? "draft"}`} item={recordItem} student={recordStudent} onBack={back}
+    readOnly={recordLesson != null} initialValue={savedRecords[`${feedbackKey(recordItem, recordStudent)}|${recordLesson ?? recordItem.lesson}`]}
+    onSave={async(record) => { if(token){await api(`/coach/classes/${lesson.id}/records`,"POST",{enrollment_id:student.enrollmentId,form:record});await reload();setStack(prev=>prev.slice(0,-2));return} setSavedRecords((prev) => ({ ...prev, [`${feedbackKey(lesson, student)}|${lesson.lesson}`]: record })); setFeedbackDone((prev) => new Set(prev).add(feedbackKey(lesson, student))); setStack((prev) => prev.slice(0, -2)) }} />
+  if (lesson && screen === "announce") return <Announce item={lesson} coachName={coachName} messages={announcements[lesson.id] ?? (token?[]:SAMPLE_ANNOUNCEMENTS)} onBack={back} onStudents={() => open("students")}
+    onSend={async(text,image) => {if(token){await api(`/coach/classes/${lesson.id}/announcements`,"POST",{text,image});await reload()}else setAnnouncements(prev=>({...prev,[lesson.id]:[...(prev[lesson.id]??SAMPLE_ANNOUNCEMENTS),{id:uid(),text}]}))}} />
+  if (lesson && screen === "classDetail") return <ClassDetail item={lesson} coachName={coachName} coachAvatar={coachAvatar} attended={(checkedIn[lesson.id]?.length ?? 0) >= rosterOf(lesson).length}
+    onRearrange={token?async()=>{await api(`/coach/classes/${lesson.id}/rearrangement`)}:undefined}
+    onBack={back} onStudents={() => open("students")} onAttendance={() => open("attendance")} onCancel={() => {if(token)void attempt(async()=>{await api(`/coach/classes/${lesson.id}/cancel`);await reload();back()});else{back();setCancelled(prev=>new Set(prev).add(lesson.id))}}} />
+  const warning = <><SwitchWarning visible={!!pending} onContinue={() => { pending?.apply(); setPending(null) }} onBack={() => setPending(null)} />
+    <Modal visible={!!invitation} transparent animationType="fade" onRequestClose={()=>setInvitation(null)}><View style={s.backdrop}><ModalShade/><View style={s.warning}><Pressable accessibilityRole="button" accessibilityLabel="Close invitation" style={s.warningClose} onPress={()=>setInvitation(null)}><Feather name="x" size={16}/></Pressable><View style={{flexDirection:"row",alignItems:"center",gap:12,marginBottom:20}}><Image source={CENTRE_LOGO} style={{width:48,height:48}}/><View style={{flex:1}}><Text style={s.name}>{centres.find(c=>c.id===invitation?.centreId)?.name}</Text><Text style={s.muted}>{centres.find(c=>c.id===invitation?.centreId)?.district}</Text></View></View><Text style={s.warningCopy}>You have been assigned{`\n`}as a {invitation?.role==="Manager"?"Centre Manager":"Coach"} for the above centre</Text><Text style={s.warningAsk}>{invitation?.role==="Manager"?"Please oversee operations, manage schedules, and ensure smooth communication within ClassZ.":"Please take attendance, and provide learning feedback after each session."}</Text><View style={s.warningActions}><Pressable accessibilityRole="button" style={s.warningPrimary} onPress={()=>{if(invitation){accept(invitation);setInvitation(null)}}}><Text style={s.warningPrimaryText}>Accept</Text></Pressable><Pressable accessibilityRole="button" style={s.warningSecondary} onPress={()=>{if(!invitation)return;const id=invitation.id;if(token)void attempt(async()=>{await api(`/coach/connections/${id}/respond`,"POST",{accept:false});await reload();setInvitation(null)});else{setConnections(prev=>prev.filter(c=>c.id!==id));setInvitation(null)}}}><Text style={s.warningSecondaryText}>Reject</Text></Pressable></View></View></View></Modal></>
+  if (screen === "centres") return <>{<CentreSearch centres={centres} connections={connections} onBack={back} onConnect={connect} />}{warning}</>
   if (screen === "settings") return <CoachSettings profile={profile} onBack={back} onChange={patch} onAccount={() => open("account")} onSupport={support} onSignOut={onSignOut} />
-  if (screen === "account") return <MyAccount profile={profile} onBack={back} onSave={(next) => { patch(next); back() }} />
-  return <>{<CoachHome profile={profile} connections={connections} onAccept={accept} onEditPhoto={() => choosePhoto((avatar) => patch({ avatar }))} onOpenProfile={() => open("profile")} onOpenCentre={openCentre} onSearch={() => open("centres")} onSettings={() => open("settings")} />}{warning}</>
+  if (screen === "account") return <MyAccount token={token} profile={profile} onBack={back} onSave={(next) => { patch(next); back() }} />
+  return <>{<CoachHome centres={centres} profile={profile} connections={connections} onAccept={setInvitation} onEditPhoto={() => choosePhoto((avatar) => patch({ avatar }))} onOpenProfile={() => open("profile")} onOpenCentre={openCentre} onSearch={() => open("centres")} onSettings={() => open("settings")} />}{warning}</>
 }
 
 function Page({ title, subtitle, onBack, left = false, right, children, footer }: { title: string; subtitle?: string; onBack?: () => void; left?: boolean; right?: ReactNode; children: ReactNode; footer?: ReactNode }) {
@@ -150,8 +219,8 @@ function Page({ title, subtitle, onBack, left = false, right, children, footer }
   </KeyboardAvoidingView>
 }
 
-function Avatar({ uri, size, onEdit }: { uri: string | number | null; size: number; onEdit?: () => void }) {
-  const source: ImageSourcePropType | null = uri == null ? null : typeof uri === "number" ? uri : { uri }
+function Avatar({ uri, size, onEdit }: { uri: CoachProfile["avatar"]; size: number; onEdit?: () => void }) {
+  const source: ImageSourcePropType | null = uri == null ? null : typeof uri === "string" ? { uri } : uri
   return <View style={{ width: size, height: size }}>
     <View style={[s.avatar, { width: size, height: size, borderRadius: size / 2 }]}>{source ? <Image source={source} style={s.fill} /> : <Feather name="user" size={size * 0.42} color="#BDBDBD" />}</View>
     {onEdit && <Pressable accessibilityRole="button" accessibilityLabel="Change profile photo" hitSlop={8} style={s.editBadge} onPress={onEdit}><Feather name="edit-2" size={11} color="white" /></Pressable>}
@@ -167,7 +236,7 @@ function Primary({ label, onPress, disabled = false }: { label: string; onPress:
 }
 
 async function choosePhoto(onPicked: (uri: string) => void) {
-  try { const picked = await pickProfileImage(); if (picked) onPicked(picked.preview) }
+  try { const picked = await pickProfileImage(); if (picked) onPicked(picked.dataUrl) }
   catch (err) { Alert.alert("Unable to choose photo", (err as Error).message) }
 }
 
@@ -209,7 +278,7 @@ function CountryPicker({ visible, value, onClose, onPick }: { visible: boolean; 
 }
 
 function CentreCard({ centre, children, onPress }: { centre: Centre; children: ReactNode; onPress?: () => void }) {
-  return <Pressable accessibilityRole={onPress ? "button" : undefined} accessibilityLabel={onPress ? `Open ${centre.name}` : undefined} disabled={!onPress} style={[s.card, s.centreCard]} onPress={onPress}>
+  return <Pressable accessibilityRole={onPress ? "button" : undefined} accessibilityLabel={onPress ? `Open ${centre.name}` : undefined} style={[s.card, s.centreCard]} onPress={onPress}>
     <Image source={CENTRE_LOGO} style={s.centreLogo} />
     <View style={s.itemCopy}>
       <Text numberOfLines={1} style={s.centreName}>{centre.name}</Text>
@@ -220,7 +289,7 @@ function CentreCard({ centre, children, onPress }: { centre: Centre; children: R
   </Pressable>
 }
 
-function CoachHome({ profile, connections, onAccept, onEditPhoto, onOpenProfile, onOpenCentre, onSearch, onSettings }: { profile: CoachProfile; connections: Connection[]; onAccept: (c: Connection) => void; onEditPhoto: () => void; onOpenProfile: () => void; onOpenCentre: (centreId: string) => void; onSearch: () => void; onSettings: () => void }) {
+function CoachHome({ centres, profile, connections, onAccept, onEditPhoto, onOpenProfile, onOpenCentre, onSearch, onSettings }: { profile: CoachProfile; centres: Centre[]; connections: Connection[]; onAccept: (c: Connection) => void; onEditPhoto: () => void; onOpenProfile: () => void; onOpenCentre: (centreId: string) => void; onSearch: () => void; onSettings: () => void }) {
   const [notice, setNotice] = useState("")
   const years = Math.floor(profile.experiences.reduce((sum, e) => sum + monthsOf(e), 0) / 12)
   const stats: Array<[number, string]> = [[profile.skills.length, "Skills"], [profile.accreditations.length, "Certificate"], [years, "Years of Experience"]]
@@ -239,9 +308,9 @@ function CoachHome({ profile, connections, onAccept, onEditPhoto, onOpenProfile,
     <View style={s.sectionHead}><Text style={s.sectionTitle}>Connected Centre</Text>
       <Pressable accessibilityRole="button" hitSlop={8} onPress={onSearch}><Text style={s.link}>Search centre</Text></Pressable>
     </View>
-    {connections.length ? connections.map((c) => { const centre = centreOf(c.centreId); return centre && <CentreCard key={c.id} centre={centre} onPress={c.status === "connected" ? () => onOpenCentre(centre.id) : undefined}>
+    {connections.length ? connections.map((c) => { const centre = centres.find(v=>v.id===c.centreId); return centre && <CentreCard key={c.id} centre={centre} onPress={c.status === "connected" ? () => onOpenCentre(centre.id) : undefined}>
       <Text style={s.rolePill}>{c.role}</Text>
-      {c.status === "invited" && <Pressable accessibilityRole="button" accessibilityLabel={`Accept ${c.role} invitation from ${centre.name}`} hitSlop={8} onPress={() => onAccept(c)}><Text style={s.actionText}>Accept</Text></Pressable>}
+      {c.status === "invited" && <Pressable accessibilityRole="button" accessibilityLabel={`Accept ${c.role} invitation from ${centre.name}`} style={s.centreActionButton} hitSlop={8} onPress={() => onAccept(c)}><Feather name="plus" size={11} color="#555555" /><Text style={s.actionText}>Accept</Text></Pressable>}
       {c.status === "requested" && <Text style={s.muted}>Pending</Text>}
     </CentreCard> })
     : <View style={s.empty}><Text style={s.emptyTitle}>No centre yet</Text><Text style={s.muted}>Search for centre by name, ID, place to send invitation</Text></View>}
@@ -263,6 +332,8 @@ function CoachProfileScreen({ profile, onBack, onChange, onAddAccreditation, onA
   const [showAllAccreditations, setShowAllAccreditations] = useState(false)
   const [showAllExperiences, setShowAllExperiences] = useState(false)
   const [skillDraft, setSkillDraft] = useState<string | null>(null)
+  const [editingBio,setEditingBio]=useState(false)
+  const [bio,setBio]=useState(profile.bio)
   const accreditationYears = useMemo(() => groupBy(profile.accreditations, (a) => a.year), [profile.accreditations])
   const experiences = useMemo(() => [...profile.experiences].sort((a, b) => (toMonths(b.from) ?? 0) - (toMonths(a.from) ?? 0)), [profile.experiences])
   const visibleYears = showAllAccreditations ? accreditationYears : accreditationYears.slice(0, COLLAPSED_ACCREDITATION_YEARS)
@@ -283,7 +354,7 @@ function CoachProfileScreen({ profile, onBack, onChange, onAddAccreditation, onA
           {!!profile.affiliation && <Text style={s.affiliation}>{profile.affiliation}</Text>}
         </View>
       </View>
-      {!!profile.bio && <Text style={s.bio}>{profile.bio}</Text>}
+      {editingBio?<><TextInput accessibilityLabel="Coach description" value={bio} onChangeText={setBio} multiline maxLength={2000} style={[s.bio,{minHeight:90,borderWidth:1,borderColor:"#ddd",padding:10}]}/><Pressable accessibilityRole="button" onPress={()=>{onChange({bio:bio.trim()});setEditingBio(false)}}><Text style={s.link}>Save description</Text></Pressable></>:<><Text style={s.bio}>{profile.bio}</Text><Pressable accessibilityRole="button" onPress={()=>{setBio(profile.bio);setEditingBio(true)}}><Text style={s.link}>Edit description</Text></Pressable></>}
     </View>
 
     <SectionHeader title="Skills" />
@@ -338,29 +409,30 @@ function AddForm({ title, fields, onBack, onConfirm }: { title: string; fields: 
   </Page>
 }
 
-function CentreSearch({ connections, onBack, onConnect }: { connections: Connection[]; onBack: () => void; onConnect: (centre: Centre) => void }) {
+function CentreSearch({ centres, connections, onBack, onConnect }: { centres: Centre[]; connections: Connection[]; onBack: () => void; onConnect: (centre: Centre) => void }) {
   const [query, setQuery] = useState("")
   const q = query.trim().toLowerCase()
-  const results = DEMO_CENTRES.filter((c) => !q || [c.name, c.id, c.district].some((v) => v.toLowerCase().includes(q.replace(/^#/, ""))))
+  const results = centres.filter((c) => !q || [c.name, c.id, c.district].some((v) => v.toLowerCase().includes(q.replace(/^#/, ""))))
   const statusOf = (centre: Centre) => connections.find((c) => c.centreId === centre.id && c.role === "Coach")?.status
   return <Page title="Centre" onBack={onBack}>
     <View style={s.search}><Feather name="search" size={15} color="#AAAAAA" /><TextInput accessibilityLabel="Search centre" value={query} onChangeText={setQuery} placeholder="Search centre by name, ID, place" placeholderTextColor="#AAAAAA" autoCorrect={false} style={s.searchInput} /></View>
     {results.map((centre) => { const status = statusOf(centre); return <CentreCard key={centre.id} centre={centre}>
       {status ? <Text style={s.muted}>{status === "connected" ? "Connected" : status === "requested" ? "Pending" : "Invited"}</Text>
-        : <Pressable accessibilityRole="button" accessibilityLabel={`Connect to ${centre.name}`} hitSlop={8} onPress={() => onConnect(centre)}><Text style={s.connectText}>Connect</Text></Pressable>}
+        : <Pressable accessibilityRole="button" accessibilityLabel={`Connect to ${centre.name}`} style={s.centreActionButton} hitSlop={8} onPress={() => onConnect(centre)}><Feather name="plus" size={11} color="#555555" /><Text style={s.connectText}>Connect</Text></Pressable>}
     </CentreCard> })}
     {!results.length && <Text style={s.notice}>No centre matches "{query.trim()}".</Text>}
   </Page>
 }
 
-function SwitchWarning({ visible, message = "Connecting to a new centre will disconnect you from your current centre.", onContinue, onBack }: { visible: boolean; message?: string; onContinue: () => void; onBack: () => void }) {
-  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onBack}><View style={s.backdrop}><View style={s.warning}>
-    <Text accessibilityRole="header" style={s.warningTitle}>Warning</Text>
-    <Text style={s.warningCopy}>{message}</Text>
-    <Text style={s.warningAsk}>Do you still want to proceed?</Text>
+function SwitchWarning({ visible, variant = "switch", onContinue, onBack }: { visible: boolean; variant?: "switch" | "disconnect"; onContinue: () => void; onBack: () => void }) {
+  const disconnect = variant === "disconnect"
+  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onBack}><View style={s.backdrop}><ModalShade/><View style={s.warning}>
+    <Pressable accessibilityRole="button" accessibilityLabel="Close confirmation" hitSlop={8} style={s.warningClose} onPress={onBack}><Feather name="x" size={16} color="#555555" /></Pressable>
+    <Text accessibilityRole="header" style={s.warningCopy}>{disconnect ? "Are you sure want to\ndisconnect?" : "Connecting to a new\ncentre will lost access to\nthe connected centre"}</Text>
+    <Text style={s.warningAsk}>{disconnect ? "Permission will be revoked immediately" : "Do you still want to proceed it?"}</Text>
     <View style={s.warningActions}>
-      <Pressable accessibilityRole="button" style={s.warningSecondary} onPress={onContinue}><Text style={s.warningSecondaryText}>Continue</Text></Pressable>
-      <Pressable accessibilityRole="button" style={[s.primary, s.warningPrimary]} onPress={onBack}><Text style={s.warningPrimaryText}>Go Back</Text></Pressable>
+      <Pressable accessibilityRole="button" style={s.warningPrimary} onPress={onContinue}><Text style={s.warningPrimaryText}>Yes</Text></Pressable>
+      <Pressable accessibilityRole="button" style={s.warningSecondary} onPress={onBack}><Text style={s.warningSecondaryText}>No</Text></Pressable>
     </View>
   </View></View></Modal>
 }
@@ -372,10 +444,11 @@ function SettingsRow({ icon, label, onPress, right }: { icon: keyof typeof Feath
 }
 
 function CoachSettings({ profile, onBack, onChange, onAccount, onSupport, onSignOut }: { profile: CoachProfile; onBack: () => void; onChange: (next: Partial<CoachProfile>) => void; onAccount: () => void; onSupport: (target: CoachSupportTarget) => void; onSignOut: () => void }) {
-  const [notify, setNotify] = useState(true)
+  const [notify, setNotify] = useState(profile.activities!==false)
+  const [promotions,setPromotions]=useState(!!profile.promotions)
   const sections: Array<{ title: string; rows: Array<{ icon: keyof typeof Feather.glyphMap; label: string; onPress?: () => void; right?: ReactNode }> }> = [
     { title: "Profile", rows: [{ icon: "user", label: "My account", onPress: onAccount }] },
-    { title: "Preference", rows: [{ icon: "globe", label: "Language", onPress: () => onSupport("language") }, { icon: "bell", label: "Activation notification", right: <Switch accessibilityLabel="Activation notification" value={notify} onValueChange={setNotify} trackColor={{ true: TEAL, false: "#E0E0E0" }} thumbColor="white" /> }] },
+    { title: "Preference", rows: [{ icon: "globe", label: "Language", onPress: () => onSupport("language") }, { icon: "bell", label: "Activities notification", right: <Switch accessibilityLabel="Activities notification" value={notify} onValueChange={value=>{setNotify(value);onChange({activities:value})}} trackColor={{ true: TEAL, false: "#E0E0E0" }} thumbColor="white" /> }, {icon:"send",label:"Promotion notification",right:<Switch accessibilityLabel="Promotion notification" value={promotions} onValueChange={value=>{setPromotions(value);onChange({promotions:value})}} trackColor={{true:TEAL,false:"#E0E0E0"}} thumbColor="white"/>}] },
     { title: "Privacy", rows: [{ icon: "lock", label: "Change password", onPress: () => onSupport("password") }, { icon: "file-text", label: "Terms & Conditions", onPress: () => onSupport("terms") }] },
     { title: "Assistance", rows: [{ icon: "help-circle", label: "Help centre", onPress: () => onSupport("contact") }, { icon: "phone", label: "Contact us", onPress: () => onSupport("contact") }, { icon: "flag", label: "Report", onPress: () => onSupport("contact") }] },
   ]
@@ -395,16 +468,27 @@ function LabeledField({ label, value, onChangeText, keyboardType, maxLength, aut
   </View>
 }
 
-function MyAccount({ profile, onBack, onSave }: { profile: CoachProfile; onBack: () => void; onSave: (next: Partial<CoachProfile>) => void }) {
+function MyAccount({ token, profile, onBack, onSave }: { token?:string; profile: CoachProfile; onBack: () => void; onSave: (next: Partial<CoachProfile>) => void }) {
   const [form, setForm] = useState<AccountForm>({ fullName: profile.fullName, displayName: profile.displayName, country: profile.country, phone: profile.phone, email: profile.email, hkid: profile.hkid })
   const [avatar, setAvatar] = useState(profile.avatar)
   const [picker, setPicker] = useState(false)
   const [error, setError] = useState("")
   const set = (key: keyof AccountForm) => (v: string) => { setError(""); setForm((prev) => ({ ...prev, [key]: v })) }
-  function save() {
+  const [otp,setOtp]=useState("")
+  const [verificationEmail,setVerificationEmail]=useState("")
+  const [busy,setBusy]=useState(false)
+  async function save() {
     const { value, problem } = normaliseAccount(form)
     if (problem) { setError(problem); return }
-    onSave({ ...value, avatar })
+    setBusy(true)
+    try {
+      if(token&&value.email.toLowerCase()!==profile.email.toLowerCase()){
+        if(verificationEmail!==value.email){await apiRequest("/user/send-verify-email",{token,method:"POST",body:{newEmail:value.email}});setVerificationEmail(value.email);setOtp("");return}
+        if(!/^\d{6}$/.test(otp))throw new Error("Enter the six-digit code sent to your new email.")
+        await apiRequest("/user/confirm-email",{token,method:"POST",body:{newEmail:value.email,otp}})
+      }
+      onSave({ ...value, avatar })
+    }catch(e){setError(errorMessage(e))}finally{setBusy(false)}
   }
   return <Page title="My Account" onBack={onBack}>
     <View style={s.registerAvatar}><Avatar uri={avatar} size={100} onEdit={() => choosePhoto(setAvatar)} /></View>
@@ -418,19 +502,20 @@ function MyAccount({ profile, onBack, onSave }: { profile: CoachProfile; onBack:
     </View>
     <LabeledField label="Email address" value={form.email} onChangeText={set("email")} keyboardType="email-address" autoCapitalize="none" />
     <LabeledField label="HK ID" value={form.hkid} onChangeText={set("hkid")} autoCapitalize="characters" maxLength={11} />
+    {!!verificationEmail&&<LabeledField label="Email verification code" value={otp} onChangeText={v=>setOtp(v.replace(/\D/g,"").slice(0,6))} keyboardType="number-pad" maxLength={6}/>}
     {!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}
-    <Primary label="Save" disabled={!Object.values(form).every((v) => v.trim())} onPress={save} />
+    <Primary label={busy?"Saving…":verificationEmail?"Verify and save":"Save"} disabled={busy||!Object.values(form).every((v) => v.trim())} onPress={save} />
     <CountryPicker visible={picker} value={form.country} onClose={() => setPicker(false)} onPick={set("country")} />
   </Page>
 }
 
 const s = StyleSheet.create({
   page: { flex: 1, backgroundColor: "white" }, flex: { flex: 1 }, fill: { width: "100%", height: "100%" }, inline: { flexDirection: "row", alignItems: "center", gap: 6 },
-  header: { minHeight: 72, paddingHorizontal: 24, paddingBottom: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "white" },
+  header: { minHeight: 72, paddingHorizontal: 16, paddingBottom: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "white" },
   round: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" }, roundSpacer: { width: 40 },
   headerTitles: { flex: 1, alignItems: "center" }, headerTitle: { fontSize: FONT.headerTitle, color: "#292929", fontWeight: "500" }, headerSubtitle: { fontSize: FONT.secondary, color: "#555555", marginTop: 4 },
   homeTitle: { flex: 1, fontSize: FONT.title, color: "#292929", fontWeight: "600" },
-  sheet: { flex: 1, backgroundColor: "white" }, content: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24, gap: 16 },
+  sheet: { flex: 1, backgroundColor: "white" }, content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24, gap: 16 },
   footer: { paddingHorizontal: 24, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#EEEEEE", backgroundColor: "white" },
   input: { minHeight: 52, borderRadius: 12, borderWidth: 1, borderColor: "#E0E0E0", paddingHorizontal: 16, fontSize: FONT.body, color: "#292929" },
   primary: { minHeight: 52, borderRadius: 12, backgroundColor: "#222222", alignItems: "center", justifyContent: "center" }, primaryOff: { backgroundColor: "#BDBDBD" }, primaryText: { color: "white", fontSize: FONT.headline, fontWeight: "500" },
@@ -460,16 +545,16 @@ const s = StyleSheet.create({
   itemTitle: { fontSize: FONT.caption, color: "#292929", fontWeight: "600" }, itemText: { fontSize: FONT.micro, color: "#555555", lineHeight: 15 },
   toggle: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, marginTop: -6 },
   formRow: { flexDirection: "row", gap: 12 },
-  centreCard: { flexDirection: "row", alignItems: "center", gap: 14, padding: 16 }, centreLogo: { width: 64, height: 64, borderRadius: 32, borderWidth: 1, borderColor: "#EEEEEE" }, centreName: { fontSize: FONT.body, color: "#292929", fontWeight: "600" },
-  centreMeta: { fontSize: FONT.caption, color: "#555555" }, centreId: { fontSize: FONT.caption, color: "#AAAAAA" },
+  centreCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12 }, centreLogo: { width: 64, height: 64, borderRadius: 32, borderWidth: 1, borderColor: "#EEEEEE" }, centreName: { fontSize: FONT.body, color: "#292929", fontWeight: "600" },
+  centreMeta: { fontSize: FONT.micro, color: "#555555" }, centreId: { fontSize: FONT.micro, color: "#AAAAAA" },
   centreActions: { alignItems: "flex-end", justifyContent: "space-between", alignSelf: "stretch", gap: 10 },
-  rolePill: { fontSize: FONT.caption, color: "#292929", borderWidth: 1, borderColor: "#BDBDBD", borderRadius: 12, overflow: "hidden", paddingHorizontal: 12, paddingVertical: 3 },
-  actionText: { fontSize: FONT.caption, color: "#292929", fontWeight: "600", textDecorationLine: "underline" }, connectText: { fontSize: FONT.caption, color: "#292929", fontWeight: "600", textDecorationLine: "underline" },
-  search: { minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: "#E0E0E0", paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 }, searchInput: { flex: 1, fontSize: FONT.caption, color: "#292929", paddingVertical: 10 },
-  warning: { width: "100%", maxWidth: 320, backgroundColor: "white", borderRadius: 14, padding: 20, gap: 8, alignItems: "center" }, warningTitle: { fontSize: FONT.headline, color: "#292929", fontWeight: "600" },
-  warningCopy: { fontSize: FONT.caption, color: "#292929", textAlign: "center", fontWeight: "500", lineHeight: 18 }, warningAsk: { fontSize: FONT.caption, color: "#555555", textAlign: "center" },
-  warningActions: { flexDirection: "row", gap: 12, marginTop: 10, alignSelf: "stretch" }, warningSecondary: { flex: 1, minHeight: 40, alignItems: "center", justifyContent: "center" }, warningSecondaryText: { fontSize: FONT.caption, color: "#555555" },
-  warningPrimary: { flex: 1.4, minHeight: 40 }, warningPrimaryText: { fontSize: FONT.caption, color: "white", fontWeight: "500" },
+  rolePill: { fontSize: FONT.micro, color: "#292929", borderWidth: 1, borderColor: "#BDBDBD", borderRadius: 12, overflow: "hidden", paddingHorizontal: 12, paddingVertical: 3 },
+  centreActionButton: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 3, minHeight: 24, marginTop: "auto" }, actionText: { fontSize: FONT.micro, color: "#555555" }, connectText: { fontSize: FONT.micro, color: "#555555" },
+  search: { minHeight: 52, borderRadius: 8, borderWidth: 1, borderColor: "#E0E0E0", paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 }, searchInput: { flex: 1, fontSize: FONT.body, color: "#292929", paddingVertical: 10 },
+  warning: { width: "100%", maxWidth: 305, backgroundColor: "white", borderRadius: 16, paddingHorizontal: 24, paddingTop: 50, paddingBottom: 24, gap: 10, alignItems: "center" }, warningTitle: { fontSize: FONT.headline, color: "#292929", fontWeight: "600" },
+  warningClose: { position: "absolute", top: 20, right: 20 }, warningCopy: { fontSize: FONT.headline, color: "#292929", textAlign: "center", lineHeight: 24 }, warningAsk: { fontSize: FONT.caption, color: "#999999", textAlign: "center", lineHeight: 18 },
+  warningActions: { flexDirection: "row", gap: 8, marginTop: 10, alignSelf: "stretch" }, warningSecondary: { flex: 1, minHeight: 44, borderRadius: 8, borderWidth: 1, borderColor: "#777777", alignItems: "center", justifyContent: "center" }, warningSecondaryText: { fontSize: FONT.body, color: "#555555" },
+  warningPrimary: { flex: 1, minHeight: 44, borderRadius: 8, backgroundColor: "#222222", alignItems: "center", justifyContent: "center" }, warningPrimaryText: { fontSize: FONT.body, color: "white", fontWeight: "500" },
   settingsHead: { alignItems: "center", gap: 10, marginBottom: 4 }, settingsSection: { gap: 2 },
   settingsRow: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#EEEEEE" }, settingsLabel: { flex: 1, fontSize: FONT.caption, color: "#292929" },
   deleteAccount: { alignSelf: "center", marginTop: 8 }, deleteText: { fontSize: FONT.caption, color: "#555555", textDecorationLine: "underline" }, logout: { alignSelf: "center", width: "60%" },

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import QRCode from "react-native-qrcode-svg"
 import { StatusBar } from "expo-status-bar"
-import { Asset } from "expo-asset"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { jwtDecode } from "jwt-decode"
 import { NavigationContainer } from "@react-navigation/native"
@@ -41,7 +41,7 @@ import {
 import { FIGMA_ASSETS } from "./src/figma-asset-urls"
 import { PAYMENT_ICONS } from "./src/payment-svgs"
 import { createInitialFlowAppState, EMPTY_STUDENT, FlowApplicationSurface, selectedStudentOf, type FlowAppState } from "./src/flow-application"
-import { API_BASE, apiRequest, assetUrl, errorMessage } from "./src/api"
+import { apiRequest, assetUrl, errorMessage, isMissingRoute } from "./src/api"
 import { pickProfileImage } from "./src/pick-profile-image"
 import { AccountDataProvider, useAccountData } from "./src/account-data"
 import { HOME_BANNER, HOME_PASSPORT_IMAGE, HOME_RECOMMEND_IMAGES, HOME_TRENDING_IMAGES, NAV_ICONS, SEARCH_BANNER_CENTRE, SEARCH_BANNER_PARENT, SEARCH_CATEGORY_COLORS, SEARCH_CATEGORY_IMAGES } from "./src/home-assets"
@@ -62,7 +62,8 @@ import { LOGIN_SVGS } from "./src/login-svgs"
 import { CoachFlow } from "./src/coach-screens"
 import { FONT } from "./src/typography"
 import { LOCALE_LABELS, nextLocale, tInbox, tMain, tNotification, tSearch, type AppLocale } from "./src/i18n"
-import { getNotificationsLatestFirst, type ClassNotification } from "./src/notifications"
+import { schedulesForProgram, type ClassScheduleOption, type LessonDate } from "./src/class-schedules"
+import { getNotificationsLatestFirst, noticeToNotification, type ClassNotification } from "./src/notifications"
 import { findInboxThread, getInboxMessages, INBOX_THREADS, type InboxChatMessage, type InboxThread } from "./src/inbox"
 
 type ClasszPortalRole = "platform_admin" | "center_admin" | "coach" | "parent" | "student"
@@ -78,6 +79,7 @@ type Session = {
 }
 
 type ScheduleClassDetailRouteParams = {
+  enrollmentId?: string
   title: string
   time: string
   date: string
@@ -85,6 +87,8 @@ type ScheduleClassDetailRouteParams = {
   image: string
   color: string
   child: string
+  location?: string
+  coach?: string
 }
 
 type RootStackParamList = {
@@ -98,7 +102,7 @@ type RootStackParamList = {
   AppTabs: undefined
   CentreDetailApp: undefined
   ReviewApp: undefined
-  MemberProfileApp: { memberId: MemberProfileId }
+  MemberProfileApp: MemberProfileRoute
   ProgramListApp: undefined
   ClassOptionApp: undefined
   ReservationApp: { schedule?: ClassScheduleOption } | undefined
@@ -117,16 +121,16 @@ type RootStackParamList = {
   FavouriteApp: undefined
   TransactionsApp: undefined
   TransactionDetailApp: { transactionId: string }
-  CompletedClassDetailApp: { transactionId: string }
+  CompletedClassDetailApp: { transactionId: string; enrollmentId?: string }
   ScheduleClassDetailApp: ScheduleClassDetailRouteParams
   VerificationCodeApp: ScheduleClassDetailRouteParams
   AttendanceConfirmedApp: ScheduleClassDetailRouteParams
   AcademicDashboardApp: undefined
   ActivityDashboardApp: undefined
-  ActivityLearningPictureApp: undefined
+  ActivityLearningPictureApp: {kind?:"academic"|"activity"}|undefined
   AcademicRecordApp: undefined
   ActivityRecordApp: undefined
-  ProgramRecordApp: { programTitle: string }
+  ProgramRecordApp: { programTitle: string; programId?:string }
   ClassRecordApp: { programTitle: string; lesson: string }
   WorkSamplesApp: undefined
   MomentsApp: undefined
@@ -175,83 +179,7 @@ type SearchFilterState = {
   services: string[]
 }
 
-type MemberProfileId = "jessica" | "athena"
-
-type MemberProfile = {
-  name: string
-  gender: "female" | "male"
-  tenure: string
-  centre: string
-  role: string
-  bio: string
-  imageUri: string
-  skills: string[]
-  accreditation: Array<{
-    year: string
-    entries: Array<{ subject: string; experience: string; organisation: string }>
-  }>
-  experience: Array<{
-    year: string
-    role: string
-    duration: string
-    organisation: string
-  }>
-}
-
-const MEMBER_PROFILES: Record<MemberProfileId, MemberProfile> = {
-  jessica: {
-    name: "Jessica Lam",
-    gender: "female",
-    tenure: "4 Years on ClassZ",
-    centre: "ClassZ Playgroup Bright Kids Drawing Centre",
-    role: "Centre Manager",
-    bio: "I'm Jessica Lam, an experienced centre manager committed to creating a welcoming environment where every child can learn confidently and enjoy meaningful progress.",
-    imageUri: FIGMA_ASSETS.reservation.host,
-    skills: ["Leadership", "Child Care", "SEN Support"],
-    accreditation: [
-      {
-        year: "2023",
-        entries: [
-          { subject: "Child Care", experience: "8 years experience", organisation: "Registered member at Hong Kong Childcare Association" },
-          { subject: "SEN Support", experience: "5 years experience", organisation: "Certified SEN Learning Support Practitioner" },
-        ],
-      },
-      {
-        year: "2021",
-        entries: [
-          { subject: "Centre Management", experience: "6 years experience", organisation: "ClassZ Professional Development Centre" },
-        ],
-      },
-    ],
-    experience: [
-      { year: "2023", role: "Centre Manager", duration: "4 years experience", organisation: "ClassZ Playgroup Bright Kids Drawing Centre" },
-      { year: "2019", role: "Program Coordinator", duration: "4 years experience", organisation: "ABC ClassZ International School" },
-    ],
-  },
-  athena: {
-    name: "Athena Yeung",
-    gender: "female",
-    tenure: "2 Years on ClassZ",
-    centre: "ClassZ Playgroup Bright Kids Drawing Centre",
-    role: "Program Coach",
-    bio: "I'm Athena Wang, an experienced music coach with a specialization in piano. For over 15 years, I've had the privilege of helping students of all ages and skill levels develop their musical talents and reach new heights.",
-    imageUri: FIGMA_ASSETS.reservation.coach,
-    skills: ["Piano", "Violin", "Flute"],
-    accreditation: ["2022", "2021", "2020"].map((year) => ({
-      year,
-      entries: ["Flute", "Flute", "Flute"].map((subject) => ({
-        subject,
-        experience: "10 years experience",
-        organisation: "Registered member at ABC Violin Association",
-      })),
-    })),
-    experience: [
-      { year: "2022", role: "Music Teacher", duration: "10 months experience", organisation: "ABC ClassZ International School" },
-      { year: "2021", role: "Music Teacher", duration: "2 years experience", organisation: "ABC ClassZ International School" },
-      { year: "2019", role: "Music Teacher", duration: "2 years experience", organisation: "ABC ClassZ International School" },
-    ],
-  },
-}
+type MemberProfileRoute = { memberId: string }
 
 const SEARCH_FILTER_DISTRICTS = [
   {
@@ -326,20 +254,15 @@ function mapJwtRole(payload: { role?: string; is_admin?: number }): ClasszPortal
 }
 
 async function apiLogin(loginIdentifier: string, password: string): Promise<Session> {
-  const res = await fetch(`${API_BASE}/user/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ loginIdentifier: loginIdentifier.trim(), password, rememberMe: true }),
-  })
-  const data = (await res.json().catch(() => ({}))) as {
-    success?: boolean
-    msg?: string
-    message?: string
+  const data = await apiRequest<{
     token?: string
     user?: { email?: string; name?: string; username?: string }
-  }
-  if (!res.ok || !data.success || !data.token) {
-    throw new Error(data.msg || data.message || "Login failed")
+  }>("/user/login", {
+    method: "POST",
+    body: { loginIdentifier: loginIdentifier.trim(), password, rememberMe: true },
+  })
+  if (!data.token) {
+    throw new Error("Login failed")
   }
   const payload = jwtDecode<{ role?: string; is_admin?: number; center_id?: number; email?: string; name?: string }>(data.token)
   return {
@@ -374,7 +297,7 @@ function HomeScreen({
   onToggleLocale: () => void
 }) {
   const t = tMain(locale)
-  const { account } = useAccountData()
+  const { account, favourites, favouritesAvailable, toggleFavourite } = useAccountData()
   const helloName = firstNameOf(account?.name || account?.full_name || session.user.name)
   const categories = ["Music", "Art", "STEM", "Academic"] as const
   const categoryLabel = (category: (typeof categories)[number]) => {
@@ -384,10 +307,7 @@ function HomeScreen({
     return t.academic
   }
   const recommended = flowAppState.programs
-  const trending = [
-    { id: "t1", title: "Homework at Home Workshop", date: "12 Apr 2026", image: HOME_TRENDING_IMAGES[0] },
-    { id: "t2", title: "Homework at Home Workshop", date: "12 Apr 2026", image: HOME_TRENDING_IMAGES[1] },
-  ]
+  const trending = flowAppState.programs.filter((program) => /workshop|short_term|summer/i.test(program.courseType || ""))
 
   const filteredRecommended = flowAppState.selectedCategory
     ? recommended.filter((p) => p.category.toLowerCase() === flowAppState.selectedCategory?.toLowerCase())
@@ -398,7 +318,7 @@ function HomeScreen({
       <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
         <View style={styles.topHeaderRow}>
           <View style={styles.profileHeader}>
-            <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.profileAvatarSmall} />
+            <Image source={{ uri: accountAvatarUrl(account) }} style={styles.profileAvatarSmall} />
             <View>
               <Text style={styles.helloText}>{t.hello(helloName)}</Text>
             </View>
@@ -428,25 +348,46 @@ function HomeScreen({
                 <Pressable
                   style={styles.homeWideCard}
                   onPress={() => {
-                    setFlowAppState((prev) => ({ ...prev, selectedProgramId: p.id }))
-                    navigation.navigate("ReservationApp")
+                    setFlowAppState((prev) => ({
+                      ...prev,
+                      selectedProgramId: p.id,
+                      selectedCentreId: p.centreId || prev.selectedCentreId,
+                    }))
+                    navigation.navigate("ClassOptionApp")
                   }}
                 >
                   <View style={styles.homeWideCardImageWrap}>
                     <Image
-                      source={HOME_RECOMMEND_IMAGES[idx % HOME_RECOMMEND_IMAGES.length]}
+                      source={p.imageUrl ? { uri: p.imageUrl } : HOME_RECOMMEND_IMAGES[idx % HOME_RECOMMEND_IMAGES.length]}
                       style={styles.homeWideCardImage}
                       resizeMode="cover"
                     />
-                    {idx === 0 ? (
+                    {flowAppState.centres.find((centre) => centre.id === p.centreId)?.supportsSen ? (
                       <View style={styles.senBadgeOnImage}>
                         <Feather name="check-circle" size={12} color="#222" />
                         <Text style={styles.senBadgeText}>SEN</Text>
                       </View>
                     ) : null}
-                    <View style={styles.heartOnImage}>
-                      <Feather name="heart" size={16} color="#fff" />
-                    </View>
+                    <Pressable
+                      accessibilityLabel="Favourite program"
+                      hitSlop={8}
+                      style={styles.heartOnImage}
+                      onPress={(event) => {
+                        event.stopPropagation()
+                        const courseId = Number(p.id)
+                        if (!favouritesAvailable || !Number.isInteger(courseId)) {
+                          Alert.alert("Favourites", "Saving favourites isn't available yet.")
+                          return
+                        }
+                        toggleFavourite("course", courseId).catch((err) => Alert.alert("Favourites", errorMessage(err)))
+                      }}
+                    >
+                      <Feather
+                        name="heart"
+                        size={16}
+                        color={favourites.some((item) => item.item_type === "course" && String(item.item_id) === p.id) ? "#E22255" : "#fff"}
+                      />
+                    </Pressable>
                   </View>
                   <View style={styles.homeWideCardBody}>
                     <View style={styles.homeWideCardTopMeta}>
@@ -501,18 +442,34 @@ function HomeScreen({
           style={styles.horizontalCardsScroll}
           contentContainerStyle={styles.horizontalCardsContent}
         >
-          {trending.map((item) => (
+          {trending.length === 0 ? (
+            <Text style={styles.cardMeta}>No workshops are published yet.</Text>
+          ) : trending.map((item, idx) => (
             <View key={item.id} style={styles.homeWideCardOuter}>
               <View style={styles.homeWideCardShadow}>
-                <Pressable style={styles.homeWideCard} onPress={() => navigation.navigate("Search")}>
+                <Pressable
+                  style={styles.homeWideCard}
+                  onPress={() => {
+                    setFlowAppState((prev) => ({
+                      ...prev,
+                      selectedProgramId: item.id,
+                      selectedCentreId: item.centreId || prev.selectedCentreId,
+                    }))
+                    navigation.navigate("ClassOptionApp")
+                  }}
+                >
                   <View style={styles.homeWideCardImageWrap}>
-                    <Image source={item.image} style={styles.homeWideCardImage} resizeMode="cover" />
+                    <Image
+                      source={item.imageUrl ? { uri: item.imageUrl } : HOME_TRENDING_IMAGES[idx % HOME_TRENDING_IMAGES.length]}
+                      style={styles.homeWideCardImage}
+                      resizeMode="cover"
+                    />
                   </View>
                   <View style={styles.homeWideCardBody}>
                     <Text style={styles.homeWideCardTitle} numberOfLines={1}>
                       {item.title}
                     </Text>
-                    <Text style={styles.homeWideCardMeta}>{item.date}</Text>
+                    <Text style={styles.homeWideCardMeta}>{item.location || item.category}</Text>
                   </View>
                 </Pressable>
               </View>
@@ -549,7 +506,8 @@ function SearchTabScreen({
   locale: AppLocale
 }) {
   const t = tSearch(locale)
-  const [favouriteCentreIds, setFavouriteCentreIds] = useState<string[]>([])
+  const { favourites, favouritesAvailable, toggleFavourite } = useAccountData()
+  const favouriteCentreIds = favourites.filter((item) => item.item_type === "centre").map((item) => String(item.item_id))
   const [showFilters, setShowFilters] = useState(false)
   const [draftFilters, setDraftFilters] = useState<SearchFilterState>(DEFAULT_SEARCH_FILTERS)
   const [appliedFilters, setAppliedFilters] = useState<SearchFilterState | null>(null)
@@ -597,12 +555,13 @@ function SearchTabScreen({
     setFlowAppState((prev) => ({ ...prev, selectedCategory: category }))
   }
 
-  const toggleFavourite = (centreId: string) => {
-    setFavouriteCentreIds((current) =>
-      current.includes(centreId)
-        ? current.filter((id) => id !== centreId)
-        : [...current, centreId],
-    )
+  const toggleCentreFavourite = (centreId: string) => {
+    const id = Number(centreId)
+    if (!favouritesAvailable || !Number.isInteger(id)) {
+      Alert.alert("Favourites", "Saving favourites isn't available yet.")
+      return
+    }
+    toggleFavourite("centre", id).catch((err) => Alert.alert("Favourites", errorMessage(err)))
   }
 
   const toggleFilterItem = (field: "districts" | "services", value: string) => {
@@ -835,7 +794,7 @@ function SearchTabScreen({
                   >
                     <View style={styles.searchResultImageWrap}>
                       <Image
-                        source={HOME_RECOMMEND_IMAGES[centre.imageIndex % HOME_RECOMMEND_IMAGES.length]}
+                        source={centre.imageUrl ? { uri: centre.imageUrl } : HOME_RECOMMEND_IMAGES[centre.imageIndex % HOME_RECOMMEND_IMAGES.length]}
                         style={styles.searchResultImage}
                         resizeMode="cover"
                       />
@@ -851,7 +810,7 @@ function SearchTabScreen({
                         style={styles.searchResultHeart}
                         onPress={(event) => {
                           event.stopPropagation()
-                          toggleFavourite(centre.id)
+                          toggleCentreFavourite(centre.id)
                         }}
                       >
                         <Feather name="heart" size={25} color="#FFFFFF" fill={favourite ? "#E22255" : "transparent"} />
@@ -860,10 +819,12 @@ function SearchTabScreen({
                     <View style={styles.searchResultBody}>
                       <View style={styles.searchResultTitleRow}>
                         <Text style={styles.searchResultTitle} numberOfLines={1}>{centre.name}</Text>
-                        <View style={styles.ratingRow}>
-                          <MaterialCommunityIcons name="star" size={15} color="#222222" />
-                          <Text style={styles.searchResultRating}>{centre.rating.toFixed(2)}</Text>
-                        </View>
+                        {centre.rating > 0 ? (
+                          <View style={styles.ratingRow}>
+                            <MaterialCommunityIcons name="star" size={15} color="#222222" />
+                            <Text style={styles.searchResultRating}>{centre.rating.toFixed(2)}</Text>
+                          </View>
+                        ) : null}
                       </View>
                       <Text style={styles.searchResultMeta}>${centre.priceFrom} {tMain(locale).lesson} · {centre.location}</Text>
                     </View>
@@ -938,18 +899,26 @@ function CentreDetailScreen({
   setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
 }) {
   const scrollRef = useRef<ScrollView>(null)
-  const [favourite, setFavourite] = useState(false)
-  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId)
-    || flowAppState.centres[0]
+  const { favourites, favouritesAvailable, toggleFavourite } = useAccountData()
+  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || null
+  if (!centre) {
+    return (
+      <SafeAreaView style={styles.centreDetailScreen} edges={["top", "bottom"]}>
+        <Text style={styles.programListEmpty}>Choose a centre from search to see its details.</Text>
+      </SafeAreaView>
+    )
+  }
+  const favourite = favourites.some((item) => item.item_type === "centre" && String(item.item_id) === centre.id)
   const category = centre.categories[0] as keyof typeof SEARCH_CATEGORY_IMAGES
   const suggestedCentres = flowAppState.centres.filter((item) => item.id !== centre.id).slice(0, 3)
   const relatedProgram = flowAppState.programs.find((program) => programBelongsToCentre(program, centre))
-  const services = [
-    { icon: "shield-check-outline", title: "SEN-inclusive", description: "SEN-friendly facilities and teaching for children with different learning needs." },
-    { icon: "account-group-outline", title: "Small Class Size", description: "Smaller class groups for more focused attention and interaction." },
-    { icon: "medal-outline", title: "Exam / Certificate Pathway", description: "Supports recognised exams, graded levels, or certificate preparation." },
-    { icon: "human-male-board", title: "Performance Opportunity", description: "Offers chances to perform, showcase, compete, or present work." },
-  ] as const
+  const featureCopy: Record<string, { icon: "shield-check-outline" | "account-group-outline" | "medal-outline" | "human-male-board"; title: string; description: string }> = {
+    sen: { icon: "shield-check-outline", title: "SEN-inclusive", description: "SEN-friendly facilities and teaching for children with different learning needs." },
+    small_class: { icon: "account-group-outline", title: "Small Class Size", description: "Smaller class groups for more focused attention and interaction." },
+    exam: { icon: "medal-outline", title: "Exam / Certificate Pathway", description: "Supports recognised exams, graded levels, or certificate preparation." },
+    performance: { icon: "human-male-board", title: "Performance Opportunity", description: "Offers chances to perform, showcase, compete, or present work." },
+  }
+  const services = (centre.features || []).map((feature) => featureCopy[feature]).filter(Boolean)
 
   return (
     <SafeAreaView style={styles.centreDetailScreen} edges={["top", "bottom"]}>
@@ -961,7 +930,7 @@ function CentreDetailScreen({
       >
         <View style={styles.centreDetailHeroWrap}>
           <Image
-            source={HOME_RECOMMEND_IMAGES[centre.imageIndex % HOME_RECOMMEND_IMAGES.length]}
+            source={centre.imageUrl ? { uri: centre.imageUrl } : HOME_RECOMMEND_IMAGES[centre.imageIndex % HOME_RECOMMEND_IMAGES.length]}
             style={styles.centreDetailHero}
             resizeMode="cover"
           />
@@ -983,7 +952,18 @@ function CentreDetailScreen({
             <Pressable accessibilityLabel="Message centre" style={styles.centreDetailRoundButton} onPress={() => navigation.navigate("InboxApp")}>
               <Feather name="message-circle" size={15} color="#222222" />
             </Pressable>
-            <Pressable accessibilityLabel="Favourite centre" style={styles.centreDetailRoundButton} onPress={() => setFavourite((value) => !value)}>
+            <Pressable
+              accessibilityLabel="Favourite centre"
+              style={styles.centreDetailRoundButton}
+              onPress={() => {
+                const id = Number(centre.id)
+                if (!favouritesAvailable || !Number.isInteger(id)) {
+                  Alert.alert("Favourites", "Saving favourites isn't available yet.")
+                  return
+                }
+                toggleFavourite("centre", id).catch((err) => Alert.alert("Favourites", errorMessage(err)))
+              }}
+            >
               <MaterialCommunityIcons name={favourite ? "heart" : "heart-outline"} size={18} color={favourite ? "#E22255" : "#222222"} />
             </Pressable>
           </View>
@@ -997,11 +977,15 @@ function CentreDetailScreen({
             <Text style={styles.centreDetailTitle}>{centre.detailName || centre.name}</Text>
           </View>
           <View style={styles.centreDetailRatingRow}>
-            <MaterialCommunityIcons name="star" size={15} color="#222222" />
-            <Text style={styles.centreDetailRating}>{centre.rating.toFixed(1)}</Text>
-            <Text style={styles.centreDetailReviewSeparator}>·</Text>
+            {centre.rating > 0 ? (
+              <>
+                <MaterialCommunityIcons name="star" size={15} color="#222222" />
+                <Text style={styles.centreDetailRating}>{centre.rating.toFixed(1)}</Text>
+                <Text style={styles.centreDetailReviewSeparator}>·</Text>
+              </>
+            ) : null}
             <Pressable accessibilityRole="button" onPress={() => navigation.navigate("ReviewApp")}>
-              <Text style={styles.centreDetailReviewLink}>{centre.reviewCount} reviews</Text>
+              <Text style={styles.centreDetailReviewLink}>{centre.reviewCount > 0 ? `${centre.reviewCount} reviews` : "No reviews yet"}</Text>
             </Pressable>
           </View>
           <View style={styles.centreDetailAddressRow}>
@@ -1010,37 +994,36 @@ function CentreDetailScreen({
           </View>
 
           <Text style={styles.centreDetailDescription}>
-            Welcome to the Enrichment Hub! Our centre is designed to provide a stimulating and supportive environment where learners of all ages can engage in a wide range of captivating classes and pursue their unique interests.
+            {centre.description || "This centre has not added a description yet."}
           </Text>
 
           <View style={styles.centreDetailDivider} />
           <Text style={styles.centreDetailSectionTitle}>Members</Text>
-          <View style={styles.centreDetailMembersRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Open Jessica Lam member profile"
-              style={styles.centreDetailMember}
-              onPress={() => navigation.navigate("MemberProfileApp", { memberId: "jessica" })}
-            >
-              <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.centreDetailMemberImage} />
-              <Text style={styles.centreDetailMemberName}>Jessica Lam</Text>
-              <Text style={styles.centreDetailMemberRole}>Centre Manager</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Open Athena Yeung member profile"
-              style={styles.centreDetailMember}
-              onPress={() => navigation.navigate("MemberProfileApp", { memberId: "athena" })}
-            >
-              <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.centreDetailMemberImage} />
-              <Text style={styles.centreDetailMemberName}>Athena Yeung</Text>
-              <Text style={styles.centreDetailMemberRole}>Program Coach</Text>
-            </Pressable>
-          </View>
+          {(centre.members || []).length === 0 ? (
+            <Text style={styles.programListEmpty}>No team members are listed for this centre yet.</Text>
+          ) : (
+            <View style={styles.centreDetailMembersRow}>
+              {(centre.members || []).map((member) => (
+                <Pressable
+                  key={member.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${member.name} member profile`}
+                  style={styles.centreDetailMember}
+                  onPress={() => navigation.navigate("MemberProfileApp", { memberId: member.id })}
+                >
+                  <Image source={{ uri: member.photoUrl || FIGMA_ASSETS.reservation.coach }} style={styles.centreDetailMemberImage} />
+                  <Text style={styles.centreDetailMemberName}>{member.name}</Text>
+                  <Text style={styles.centreDetailMemberRole}>{member.role}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
 
           <View style={styles.centreDetailDivider} />
           <View style={styles.centreDetailServices}>
-            {services.map((service) => (
+            {services.length === 0 ? (
+              <Text style={styles.programListEmpty}>No extra services are listed for this centre yet.</Text>
+            ) : services.map((service) => (
               <View key={service.title} style={styles.centreDetailServiceRow}>
                 <MaterialCommunityIcons name={service.icon} size={24} color="#343434" />
                 <View style={styles.centreDetailServiceCopy}>
@@ -1131,15 +1114,14 @@ function ProgramListScreen({
   flowAppState: FlowAppState
   setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
 }) {
-  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId)
-    || flowAppState.centres[0]
-  const programs = flowAppState.programs.filter((program) => programBelongsToCentre(program, centre))
-  const scheduleCounts = ["10+ schedules", "8+ schedules", "10+ schedules"]
-  const programCards = programs.flatMap((program) => scheduleCounts.map((schedules, index) => ({
-    key: `${program.id}-${index}`,
+  const { classes } = useAccountData()
+  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || null
+  const programs = centre ? flowAppState.programs.filter((program) => programBelongsToCentre(program, centre)) : []
+  const programCards = programs.map((program) => ({
+    key: program.id,
     program,
-    schedules,
-  })))
+    schedules: schedulesForProgram(program, classes).length,
+  }))
 
   return (
     <SafeAreaView style={styles.programListScreen} edges={["top", "bottom"]}>
@@ -1176,17 +1158,17 @@ function ProgramListScreen({
             }}
           >
             <Image
-              source={{ uri: FIGMA_ASSETS.reservation.program }}
+              source={program.imageUrl ? { uri: program.imageUrl } : { uri: FIGMA_ASSETS.reservation.program }}
               style={styles.programListImage}
               resizeMode="cover"
             />
             <View style={styles.programListCardBody}>
               <View style={styles.programListTitleRow}>
                 <Text style={styles.programListTitle} numberOfLines={1}>{program.title}</Text>
-                <Text style={styles.programListSchedules}>{schedules}</Text>
+                <Text style={styles.programListSchedules}>{schedules ? `${schedules} schedules` : "Schedule TBC"}</Text>
               </View>
               <Text style={styles.programListMeta}>
-                <Text style={styles.programListPrice}>From ${program.price}</Text> lesson · Age 3–6
+                <Text style={styles.programListPrice}>From ${program.price}</Text> lesson{program.ageTag ? ` · ${program.ageTag}` : ""}
               </Text>
             </View>
           </Pressable>
@@ -1194,75 +1176,6 @@ function ProgramListScreen({
       </ScrollView>
     </SafeAreaView>
   )
-}
-
-type ClassScheduleOption = {
-  id: string
-  lessonCount: number
-  dateRange: string
-  originalPrice: number | null
-  price: number
-  spotsLeft: number
-  goingCount: number
-  language: string
-  address: string
-  coachName: string
-  lessonDates: LessonDate[]
-}
-
-type LessonDate = {
-  lesson: number
-  dateLabel: string
-  weekday: string
-  time: string
-}
-
-const LESSON_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const
-const LESSON_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const
-const DESIGN_LESSON_DATES = [
-  { month: 9, day: 23, time: "4:00PM - 5:00PM" },
-  { month: 9, day: 26, time: "4:00PM - 5:00PM" },
-  { month: 9, day: 30, time: "4:00PM - 5:00PM" },
-  { month: 10, day: 2, time: "4:00PM - 5:00PM" },
-  { month: 10, day: 6, time: "4:00PM - 5:00PM" },
-  { month: 10, day: 9, time: "4:00PM - 5:00PM" },
-  { month: 10, day: 13, time: "4:00PM - 5:00PM" },
-  { month: 10, day: 28, time: "2:00PM - 3:00PM" },
-] as const
-
-function buildLessonDates(dayOffset: number): LessonDate[] {
-  return DESIGN_LESSON_DATES.map((item, index) => {
-    const date = new Date(2026, item.month, item.day + dayOffset)
-    return {
-      lesson: index + 1,
-      dateLabel: `${LESSON_MONTHS[date.getMonth()]} ${date.getDate()}`,
-      weekday: LESSON_WEEKDAYS[date.getDay()],
-      time: item.time,
-    }
-  })
-}
-
-function buildProgramSchedule(
-  program: { id: string; price: number },
-  dayOffset: number,
-  dateRange: string,
-  originalPrice: number | null,
-  spotsLeft: number,
-  goingCount: number,
-): ClassScheduleOption {
-  return {
-    id: `${program.id}-${dateRange}`,
-    lessonCount: 8,
-    dateRange,
-    originalPrice,
-    price: program.price,
-    spotsLeft,
-    goingCount,
-    language: "Cantonese",
-    address: "Shop 1B, Class Mall, Central, Hong Kong",
-    coachName: "Athena Yeung",
-    lessonDates: buildLessonDates(dayOffset),
-  }
 }
 
 function LessonDateRows({ dates }: { dates: LessonDate[] }) {
@@ -1304,7 +1217,8 @@ function ClassOptionScreen({
   flowAppState: FlowAppState
   setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
 }) {
-  const active = flowAppState.programs.find((p) => p.id === flowAppState.selectedProgramId) || flowAppState.programs[0]
+  const { classes } = useAccountData()
+  const active = flowAppState.programs.find((p) => p.id === flowAppState.selectedProgramId) || null
   const [expandedOptionIds, setExpandedOptionIds] = useState<string[]>([])
   const optionAvatars = [
     FIGMA_ASSETS.reservation.host,
@@ -1312,10 +1226,7 @@ function ClassOptionScreen({
     FIGMA_ASSETS.reservation.child,
     FIGMA_ASSETS.reservation.host,
   ]
-  const options: ClassScheduleOption[] = [
-    buildProgramSchedule(active, 0, "Oct 23 - Nov 28", 399, 4, 3),
-    buildProgramSchedule(active, 2, "Oct 25 - Nov 30", null, 6, 5),
-  ]
+  const options = active ? schedulesForProgram(active, classes) : []
 
   const toggleOptionExpanded = (optionId: string) => {
     setExpandedOptionIds((current) =>
@@ -1346,15 +1257,17 @@ function ClassOptionScreen({
         showsVerticalScrollIndicator={false}
       >
         <Image
-          source={{ uri: FIGMA_ASSETS.reservation.program }}
+          source={active?.imageUrl ? { uri: active.imageUrl } : { uri: FIGMA_ASSETS.reservation.program }}
           style={styles.classOptionHero}
           resizeMode="cover"
         />
-        <Text style={styles.classOptionTitle}>{active.title}</Text>
+        <Text style={styles.classOptionTitle}>{active?.title || "Program"}</Text>
         <Text style={styles.classOptionDescription}>
-          This is {active.title}! Our centre is designed to provide a stimulating and supportive
-          environment where learners of all ages can engage.
+          {active?.intro || "This program does not have a description yet."}
         </Text>
+        {options.length === 0 ? (
+          <Text style={styles.programListEmpty}>No upcoming class times are published for this program yet.</Text>
+        ) : null}
         <View style={styles.classOptionDivider} />
 
         {options.map((option) => {
@@ -1422,7 +1335,7 @@ function ClassOptionScreen({
                   accessibilityLabel={`Enroll in ${option.lessonCount} lessons starting ${option.dateRange}`}
                   style={styles.classOptionReserveButton}
                   onPress={() => {
-                    setFlowAppState((prev) => ({ ...prev, selectedProgramId: active.id }))
+                    setFlowAppState((prev) => ({ ...prev, selectedProgramId: active?.id || prev.selectedProgramId }))
                     navigation.navigate("ReservationApp", { schedule: option })
                   }}
                 >
@@ -1455,15 +1368,9 @@ function ClassOptionScreen({
 }
 
 function ReviewScreen({ navigation, flowAppState }: { navigation: any; flowAppState: FlowAppState }) {
-  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId)
-    || flowAppState.centres[0]
-  const reviews = [
-    { id: "review-1", rating: 5, date: "Mar 04, 2026" },
-    { id: "review-2", rating: 4, date: "Mar 04, 2026" },
-    { id: "review-3", rating: 3, date: "Mar 04, 2026" },
-    { id: "review-4", rating: 4, date: "Mar 04, 2026" },
-    { id: "review-5", rating: 3, date: "Mar 04, 2026" },
-  ]
+  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || null
+  const [reviews,setReviews]=useState<{id:string;rating:number;date:string;author:string;body:string}[]>([])
+  useEffect(()=>{if(!centre)return;let active=true;apiRequest<{data:typeof reviews}>(`/reviews?center_id=${encodeURIComponent(centre.id)}`).then(r=>{if(active)setReviews(r.data)}).catch(e=>Alert.alert("Reviews",errorMessage(e)));return()=>{active=false}},[centre?.id])
 
   return (
     <SafeAreaView style={styles.reviewScreen} edges={["top", "bottom"]}>
@@ -1485,12 +1392,17 @@ function ReviewScreen({ navigation, flowAppState }: { navigation: any; flowAppSt
         contentContainerStyle={styles.reviewContent}
         showsVerticalScrollIndicator={false}
       >
+        {reviews.length === 0 ? (
+          <Text style={styles.programListEmpty}>
+            {centre ? `${centre.name} has no reviews yet.` : "Reviews aren't available yet."}
+          </Text>
+        ) : null}
         {reviews.map((review) => (
           <View key={review.id} style={styles.reviewCard}>
             <View style={styles.reviewCardHeader}>
               <View style={styles.reviewAuthorRow}>
                 <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.reviewAvatar} resizeMode="cover" />
-                <Text style={styles.reviewAuthor}>Jacky Lam</Text>
+                <Text style={styles.reviewAuthor}>{review.author}</Text>
               </View>
               <View style={styles.reviewScoreRow} accessibilityLabel={`${review.rating} out of 5 stars`}>
                 {Array.from({ length: review.rating }).map((_, index) => (
@@ -1500,9 +1412,7 @@ function ReviewScreen({ navigation, flowAppState }: { navigation: any; flowAppSt
               </View>
               <Text style={styles.reviewDate}>{review.date}</Text>
             </View>
-            <Text style={styles.reviewBody}>
-              {`This is ${centre.name}! Our centre is designed to provide a stimulating and supportive environment where learners of all ages can engage.`}
-            </Text>
+            <Text style={styles.reviewBody}>{review.body}</Text>
           </View>
         ))}
       </ScrollView>
@@ -1510,9 +1420,12 @@ function ReviewScreen({ navigation, flowAppState }: { navigation: any; flowAppSt
   )
 }
 
-function MemberProfileScreen({ navigation, route }: { navigation: any; route: any }) {
-  const memberId = route.params?.memberId as MemberProfileId
-  const member = MEMBER_PROFILES[memberId] || MEMBER_PROFILES.athena
+function MemberProfileScreen({ navigation, route, flowAppState }: { navigation: any; route: { params: MemberProfileRoute }; flowAppState: FlowAppState }) {
+  const member = flowAppState.centres.flatMap((centre) => centre.members || []).find((item) => item.id === route.params?.memberId) || null
+  const centre = flowAppState.centres.find((item) => (item.members || []).some((memberRow) => memberRow.id === route.params?.memberId))
+
+  const [portfolio,setPortfolio]=useState<{bio:string;skills:string[];accreditations:{id:string;skill:string;result:string;year:string;organisation:string}[];experiences:{id:string;position:string;from:string;to:string;workplace:string}[]}|null>(null)
+  useEffect(()=>{if(!member||!centre)return;let active=true;apiRequest<{data:NonNullable<typeof portfolio>}>(`/centers/${centre.id}/members/${member.id}/profile`).then(r=>{if(active)setPortfolio(r.data)}).catch(()=>{});return()=>{active=false}},[member?.id,centre?.id])
 
   return (
     <SafeAreaView style={styles.memberProfileScreen} edges={["top", "bottom"]}>
@@ -1534,142 +1447,32 @@ function MemberProfileScreen({ navigation, route }: { navigation: any; route: an
         contentContainerStyle={styles.memberProfileContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.memberProfileSummaryCard}>
-          <View style={styles.memberProfileIdentityRow}>
-            <Image source={{ uri: member.imageUri }} style={styles.memberProfileAvatar} resizeMode="cover" />
-            <View style={styles.memberProfileIdentityCopy}>
-              <View style={styles.memberProfileNameRow}>
+        {!member ? (
+          <Text style={styles.programListEmpty}>This coach profile isn't available.</Text>
+        ) : (
+          <View style={styles.memberProfileSummaryCard}>
+            <View style={styles.memberProfileIdentityRow}>
+              <Image source={{ uri: member.photoUrl || FIGMA_ASSETS.reservation.coach }} style={styles.memberProfileAvatar} resizeMode="cover" />
+              <View style={styles.memberProfileIdentityCopy}>
                 <Text style={styles.memberProfileName}>{member.name}</Text>
-                <MaterialCommunityIcons
-                  name={member.gender === "female" ? "gender-female" : "gender-male"}
-                  size={16}
-                  color="#0ABAB5"
-                />
+                <Text style={styles.memberProfileTenure}>{member.role}</Text>
+                <Text style={styles.memberProfileCentre}>{centre?.name || ""}</Text>
               </View>
-              <Text style={styles.memberProfileTenure}>{member.tenure}</Text>
-              <Text style={styles.memberProfileCentre}>{member.centre}</Text>
             </View>
+            <Text style={styles.memberProfileBio}>
+              {portfolio?.bio||"This coach has not added a description yet."}
+            </Text>
+            {!!portfolio?.skills.length&&<><Text style={styles.memberProfileName}>Skills</Text><Text style={styles.memberProfileBio}>{portfolio.skills.join(" · ")}</Text></>}
+            {portfolio?.accreditations.map(a=><Text key={a.id} style={styles.memberProfileBio}>{a.skill} · {a.result} · {a.year}{"\n"}{a.organisation}</Text>)}
+            {portfolio?.experiences.map(e=><Text key={e.id} style={styles.memberProfileBio}>{e.position} · {e.from} – {e.to}{"\n"}{e.workplace}</Text>)}
           </View>
-          <Text style={styles.memberProfileBio}>{member.bio}</Text>
-        </View>
-
-        <View style={styles.memberProfileSection}>
-          <Text style={styles.memberProfileSectionTitle}>Skills</Text>
-          <View style={styles.memberProfileSkillRow}>
-            {member.skills.map((skill) => (
-              <View key={skill} style={styles.memberProfileSkillChip}>
-                <Text style={styles.memberProfileSkillText}>{skill}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.memberProfileSection}>
-          <Text style={styles.memberProfileSectionTitle}>Accreditation</Text>
-          <View style={styles.memberProfileTimelineCard}>
-            {member.accreditation.map((group) => (
-              <View key={group.year} style={styles.memberProfileTimelineGroup}>
-                <Text style={styles.memberProfileTimelineYear}>{group.year}</Text>
-                <View style={styles.memberProfileTimelineRail}>
-                  {group.entries.map((entry, index) => (
-                    <View key={`${group.year}-${entry.subject}-${index}`} style={styles.memberProfileTimelineEntry}>
-                      <View style={styles.memberProfileTimelineDot} />
-                      <Text style={styles.memberProfileTimelineRole}>{entry.subject}</Text>
-                      <Text style={styles.memberProfileTimelineDetail}>{entry.experience}</Text>
-                      <Text style={styles.memberProfileTimelineMeta}>{entry.organisation}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.memberProfileSection}>
-          <Text style={styles.memberProfileSectionTitle}>Experience</Text>
-          <View style={styles.memberProfileTimelineCard}>
-            {member.experience.map((entry) => (
-              <View key={`${entry.year}-${entry.role}`} style={styles.memberProfileExperienceGroup}>
-                <Text style={styles.memberProfileTimelineYear}>{entry.year}</Text>
-                <View style={styles.memberProfileExperienceCopy}>
-                  <Text style={styles.memberProfileTimelineRole}>{entry.role}</Text>
-                  <Text style={styles.memberProfileTimelineDetail}>{entry.duration}</Text>
-                  <Text style={styles.memberProfileTimelineMeta}>{entry.organisation}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <Text style={styles.memberProfileDisclaimer}>
-          Note: Coach profiles and experience data are self-claimed. ClassZ is not responsible for the accuracy of this information.
-        </Text>
+        )}
       </ScrollView>
     </SafeAreaView>
   )
 }
 
 type ScheduleView = "calendar" | "upcoming"
-
-const SCHEDULE_CALENDAR_DAYS = [
-  31, 30, 1, 2, 3, 4, 5,
-  6, 7, 8, 9, 10, 11, 12,
-  13, 14, 15, 16, 17, 18, 19,
-  20, 21, 22, 23, 24, 25, 26,
-  27, 28, 29, 30, 1, 2, 3,
-] as const
-
-type TransactionRecord = {
-  id: string
-  title: string
-  image: string
-  child: string
-  childImage: string
-  completed: boolean
-}
-
-const TRANSACTIONS: TransactionRecord[] = [
-  {
-    id: "rising-star",
-    title: "Rising Star Academic Program",
-    image: FIGMA_ASSETS.main.recommend1,
-    child: "Shelly Wong",
-    childImage: FIGMA_ASSETS.reservation.coach,
-    completed: false,
-  },
-  {
-    id: "painting-current",
-    title: "ClassZ Painting Program",
-    image: FIGMA_ASSETS.main.recommend2,
-    child: "Lucas Wong",
-    childImage: FIGMA_ASSETS.reservation.child,
-    completed: false,
-  },
-  {
-    id: "painting-completed",
-    title: "ClassZ Painting Program",
-    image: FIGMA_ASSETS.main.recommend2,
-    child: "Lucas Wong",
-    childImage: FIGMA_ASSETS.reservation.child,
-    completed: true,
-  },
-  {
-    id: "guitar-completed-1",
-    title: "ClassZ Guitar Program",
-    image: FIGMA_ASSETS.reservation.program,
-    child: "Charlie Wong",
-    childImage: FIGMA_ASSETS.reservation.child,
-    completed: true,
-  },
-  {
-    id: "guitar-completed-2",
-    title: "ClassZ Guitar Program",
-    image: FIGMA_ASSETS.reservation.program,
-    child: "Charlie Wong",
-    childImage: FIGMA_ASSETS.reservation.child,
-    completed: true,
-  },
-]
 
 function accountAvatarUrl(account?: { photo_url?: string | null } | null) {
   return assetUrl(account?.photo_url) || FIGMA_ASSETS.reservation.coach
@@ -1750,6 +1553,7 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
   const scheduleItems = [] as {
     id: string
     childId: string
+    enrollmentId?: string
     time: string
     date: string
     dateKey: string
@@ -1771,6 +1575,7 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
     sessions.forEach((session, lessonIndex) => {
       scheduleItems.push({
         id: `enroll-${item.id}-${session.id || lessonIndex}`,
+        enrollmentId: String(item.class?.id) === String(session.id) ? item.id : enrollments.find(e=>e.profile_id===item.profile_id&&String(e.class?.id)===String(session.id))?.id,
         childId: item.profile_id || child.id,
         time: formatScheduleRange(session.start_time, session.end_time),
         date: formatScheduleDate(session.start_time),
@@ -2033,12 +1838,14 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
               style={styles.scheduleCard}
               onPress={() => navigation.navigate("ScheduleClassDetailApp", {
                 title: item.title,
+                enrollmentId: item.enrollmentId,
                 time: item.time,
                 date: item.date,
                 lesson: item.lesson,
                 image: item.image,
                 color: item.color,
                 child: item.child,
+                location: item.location,
               })}
             >
               <View style={styles.scheduleCardTimeRow}>
@@ -2068,6 +1875,7 @@ function CalendarTabScreen({ navigation, flowAppState }: { navigation: any; flow
 }
 
 function TransactionsScreen({ navigation }: { navigation: any }) {
+  const { orders, loaded } = useAccountData()
   return (
     <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
       <ProfileFlowHeader navigation={navigation} title="Transactions" />
@@ -2076,38 +1884,32 @@ function TransactionsScreen({ navigation }: { navigation: any }) {
         contentContainerStyle={styles.transactionsContent}
         showsVerticalScrollIndicator={false}
       >
-        {TRANSACTIONS.map((transaction) => (
-          <Pressable
-            key={transaction.id}
-            accessibilityRole="button"
-            accessibilityLabel={`Open ${transaction.title} transaction`}
-            style={({ pressed }) => [styles.transactionCard, pressed ? styles.transactionCardPressed : null]}
-            onPress={() => navigation.navigate(
-              transaction.completed ? "CompletedClassDetailApp" : "TransactionDetailApp",
-              { transactionId: transaction.id },
-            )}
-          >
-            <View style={styles.transactionTitleRow}>
-              <Text style={styles.transactionTitle} numberOfLines={1}>{transaction.title}</Text>
-              {transaction.completed ? <Text style={styles.transactionCompleted}>Completed</Text> : null}
-            </View>
-            <View style={styles.transactionMainRow}>
-              <Image source={{ uri: transaction.image }} style={styles.transactionImage} resizeMode="cover" />
-              <View style={styles.transactionCopy}>
-                <Text style={styles.transactionSchedule}>8 lessons · Oct 23 - Nov 28</Text>
-                <View style={styles.transactionChildRow}>
-                  <Image source={{ uri: transaction.childImage }} style={styles.transactionChildImage} resizeMode="cover" />
-                  <Text style={styles.transactionChildName}>{transaction.child}</Text>
-                </View>
-                <View style={styles.transactionCentreRow}>
-                  <Feather name="map-pin" size={13} color="#8A8A8A" />
-                  <Text style={styles.transactionCentre} numberOfLines={2}>ClassZ Playgroup Bright Kids Drawing Centre</Text>
-                </View>
-                <Text style={styles.transactionTotal}>$2,392 <Text style={styles.transactionTotalLabel}>total</Text></Text>
+        {loaded && orders.length === 0 ? (
+          <Text style={styles.programListEmpty}>No transactions yet.</Text>
+        ) : null}
+        {orders.map((order) => {
+          const title = order.package_name || order.order_id || `Order ${order.id}`
+          const paid = /paid|success|complete/i.test(order.payment_status || "")
+          return (
+            <Pressable
+              key={String(order.id)}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${title} transaction`}
+              style={({ pressed }) => [styles.transactionCard, pressed ? styles.transactionCardPressed : null]}
+              onPress={() => navigation.navigate("TransactionDetailApp", { transactionId: String(order.id) })}
+            >
+              <View style={styles.transactionTitleRow}>
+                <Text style={styles.transactionTitle} numberOfLines={1}>{title}</Text>
+                <Text style={styles.transactionCompleted}>{order.payment_status || (paid ? "Paid" : "Pending")}</Text>
               </View>
-            </View>
-          </Pressable>
-        ))}
+              <View style={styles.transactionCopy}>
+                <Text style={styles.transactionSchedule}>{formatScheduleDate(order.created_at) || "Date TBC"}</Text>
+                {order.payment_method ? <Text style={styles.transactionCentre}>{order.payment_method}</Text> : null}
+                <Text style={styles.transactionTotal}>${formatAmount(Number(order.total) || 0)} <Text style={styles.transactionTotalLabel}>total</Text></Text>
+              </View>
+            </Pressable>
+          )
+        })}
       </ScrollView>
     </SafeAreaView>
   )
@@ -2116,16 +1918,13 @@ function TransactionsScreen({ navigation }: { navigation: any }) {
 function TransactionDetailScreen({
   navigation,
   route,
-  flowAppState,
 }: {
   navigation: any
   route: { params: { transactionId: string } }
   flowAppState: FlowAppState
 }) {
-  const transaction = TRANSACTIONS.find((item) => item.id === route.params.transactionId) || TRANSACTIONS[0]
-  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || flowAppState.centres[0]
-  const [datesExpanded, setDatesExpanded] = useState(true)
-  const lessonDates = buildLessonDates(0)
+  const { orders } = useAccountData()
+  const order = orders.find((item) => String(item.id) === route.params.transactionId || item.order_id === route.params.transactionId)
 
   return (
     <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
@@ -2135,115 +1934,40 @@ function TransactionDetailScreen({
         contentContainerStyle={styles.transactionDetailContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.transactionDetailProgramCard}>
-          <Image source={{ uri: transaction.image }} style={styles.transactionDetailProgramImage} resizeMode="cover" />
-          <View style={styles.transactionDetailProgramCopy}>
-            <Text style={styles.transactionDetailProgramTitle}>{transaction.title}</Text>
-            <View style={styles.confirmedMetaRow}>
-              <Feather name="globe" size={14} color="#777777" />
-              <Text style={styles.confirmedMetaText}>Cantonese</Text>
+        {!order ? (
+          <Text style={styles.programListEmpty}>This transaction could not be found.</Text>
+        ) : (
+          <View style={styles.transactionDetailCard}>
+            <Text style={styles.transactionDetailSectionTitle}>{order.package_name || order.order_id}</Text>
+            <View style={styles.transactionPaymentRow}>
+              <Text style={styles.transactionPaymentLabel}>Status</Text>
+              <Text style={styles.transactionPaymentValue}>{order.payment_status || "Pending"}</Text>
             </View>
-            <View style={styles.confirmedMetaRow}>
-              <Feather name="map-pin" size={14} color="#777777" />
-              <Text style={styles.confirmedMetaText}>Shop 1B, Class Mall, Central, Hong Kong</Text>
+            <View style={styles.transactionPaymentRow}>
+              <Text style={styles.transactionPaymentLabel}>Date</Text>
+              <Text style={styles.transactionPaymentValue}>{formatScheduleDate(order.created_at) || "TBC"}</Text>
             </View>
-          </View>
-        </View>
-
-        <View style={styles.transactionDetailSection}>
-          <Text style={styles.transactionDetailSectionTitle}>Hosted by</Text>
-          <View style={styles.transactionDetailPersonRow}>
-            <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.transactionDetailAvatar} resizeMode="cover" />
-            <Text style={styles.transactionDetailPersonNameFill}>{centre.detailName || centre.name}</Text>
-            <View style={styles.confirmedRating}>
-              <MaterialCommunityIcons name="star" size={16} color="#222222" />
-              <Text style={styles.confirmedRatingText}>{centre.rating.toFixed(2)}</Text>
+            {order.payment_method ? (
+              <View style={styles.transactionPaymentRow}>
+                <Text style={styles.transactionPaymentLabel}>Method</Text>
+                <Text style={styles.transactionPaymentValue}>{order.payment_method}</Text>
+              </View>
+            ) : null}
+            {order.token_count != null ? (
+              <View style={styles.transactionPaymentRow}>
+                <Text style={styles.transactionPaymentLabel}>Tokens</Text>
+                <Text style={styles.transactionPaymentValue}>{order.token_count}</Text>
+              </View>
+            ) : null}
+            <View style={styles.transactionPaymentDivider} />
+            <View style={styles.transactionPaymentRow}>
+              <Text style={styles.transactionPaymentTotal}>Total (HKD)</Text>
+              <Text style={styles.transactionPaymentTotal}>${formatAmount(Number(order.total) || 0)}</Text>
             </View>
+            <Text style={styles.programListEmpty}>Lesson-by-lesson dates are not included on this order yet.</Text>
           </View>
-          <View style={styles.transactionDetailPersonRow}>
-            <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.transactionDetailAvatar} resizeMode="cover" />
-            <View style={styles.transactionDetailPersonCopy}>
-              <Text style={styles.transactionDetailPersonName}>Athena Yeung</Text>
-              <Text style={styles.transactionDetailPersonRole}>Program Coach</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.transactionDetailDivider} />
-
-        <View style={styles.transactionDetailSection}>
-          <Text style={styles.transactionDetailSectionTitle}>Booking for</Text>
-          <View style={styles.transactionDetailPersonRow}>
-            <Image source={{ uri: transaction.childImage }} style={styles.transactionDetailAvatar} resizeMode="cover" />
-            <Text style={styles.transactionDetailPersonNameFill}>{transaction.child}</Text>
-          </View>
-        </View>
-
-        <View style={styles.transactionDetailDivider} />
-
-        <View style={styles.transactionDetailCard}>
-          <View style={styles.transactionDetailDatesHeader}>
-            <Text style={styles.transactionDetailScheduleTitle}>8 lessons · Oct 23 - Nov 28</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ expanded: datesExpanded }}
-              style={styles.transactionDetailDatesToggle}
-              onPress={() => setDatesExpanded((expanded) => !expanded)}
-            >
-              <Text style={styles.transactionDetailDatesToggleText}>{datesExpanded ? "Hide full dates" : "Show full dates"}</Text>
-              <Feather name={datesExpanded ? "chevron-up" : "chevron-down"} size={14} color="#777777" />
-            </Pressable>
-          </View>
-          {datesExpanded ? (
-            <View style={styles.transactionDetailLessonList}>
-              <Text style={styles.transactionDetailLessonHeading}>Lesson dates</Text>
-              <LessonDateRows dates={lessonDates} />
-          </View>
-        ) : null}
-          </View>
-
-        <View style={styles.transactionDetailCard}>
-          <Text style={styles.transactionDetailSectionTitle}>Payment Breakdown</Text>
-          <Text style={styles.transactionProtection}>
-            Your booking is protected by <ZCareWord style={styles.transactionProtectionBrand} />
-          </Text>
-          <View style={styles.transactionPaymentRow}>
-            <Text style={styles.transactionPaymentLabel}>299 x 8 lessons</Text>
-            <Text style={styles.transactionPaymentValue}>$2,392</Text>
-          </View>
-          <View style={styles.transactionPaymentRow}>
-            <Text style={styles.transactionPaymentLabel}>Limited discount</Text>
-            <Text style={styles.transactionPaymentDiscount}>-$800</Text>
-          </View>
-          <View style={styles.transactionPaymentRow}>
-            <Text style={styles.transactionLoyalty}>ⓘ LOYAL2026</Text>
-            <Text style={styles.transactionPaymentDiscount}>-$15</Text>
-          </View>
-          <View style={styles.transactionPaymentRow}>
-            <Text style={styles.transactionPaymentLabel}>Platform fee</Text>
-            <Text style={styles.transactionPaymentValue}>$5</Text>
-          </View>
-          <View style={styles.transactionPaymentDivider} />
-          <View style={styles.transactionPaymentRow}>
-            <Text style={styles.transactionPaymentTotal}>Total (HKD)</Text>
-            <Text style={styles.transactionPaymentTotal}>$3,182</Text>
-          </View>
-        </View>
+        )}
       </ScrollView>
-
-      <View style={styles.classDetailBottomNav}>
-        {(["Home", "Search", "Calendar", "Analytics"] as const).map((screen) => (
-          <Pressable key={screen} style={styles.favouriteBottomNavItem} onPress={() => navigation.navigate("AppTabs", { screen })}>
-            <Image
-              source={NAV_ICONS[screen]}
-              style={[styles.realTabIcon, { tintColor: screen === "Analytics" ? "#0ABAB5" : "#8A8A8A" }]}
-            />
-          </Pressable>
-        ))}
-        <Pressable style={styles.favouriteBottomNavItem} onPress={() => navigation.navigate("AppTabs", { screen: "Profile" })}>
-          <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.profileTabAvatar} resizeMode="cover" />
-        </Pressable>
-      </View>
     </SafeAreaView>
   )
 }
@@ -2252,15 +1976,27 @@ function CompletedClassDetailScreen({
   navigation,
   route,
   flowAppState,
+  token,
 }: {
+  token:string
   navigation: any
-  route: { params: { transactionId: string } }
+  route: { params: { transactionId: string; enrollmentId?:string } }
   flowAppState: FlowAppState
 }) {
-  const transaction = TRANSACTIONS.find((item) => item.id === route.params.transactionId) || TRANSACTIONS[3]
-  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || flowAppState.centres[0]
+  const { orders,enrollments } = useAccountData()
+  const enrollment=enrollments.find(e=>e.id===route.params.enrollmentId)
+  const order = orders.find((item) => String(item.id) === route.params.transactionId)
+  const transaction = {
+    title: enrollment?.class.name || order?.package_name || order?.order_id || "Class",
+    image: FIGMA_ASSETS.reservation.program,
+    child: "",
+    childImage: FIGMA_ASSETS.reservation.child,
+  }
+  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || null
   const [rating, setRating] = useState(4)
   const [review, setReview] = useState("")
+  const [submitting,setSubmitting]=useState(false)
+  const [submitted,setSubmitted]=useState(false)
 
   return (
     <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
@@ -2276,20 +2012,20 @@ function CompletedClassDetailScreen({
           <View style={styles.classDetailProgramCard}>
             <View style={styles.scheduleCardTimeRow}>
               <View style={[styles.scheduleCardDot, { backgroundColor: "#0ABAB5" }]} />
-              <Text style={styles.classDetailTime}>10:00AM-01:00PM · Sept 02</Text>
+              <Text style={styles.classDetailTime}>{enrollment?`${formatScheduleRange(enrollment.class.start_time,enrollment.class.end_time)} · ${formatScheduleDate(enrollment.class.start_time)}`:""}</Text>
             </View>
             <View style={styles.classDetailProgramRow}>
               <Image source={{ uri: transaction.image }} style={styles.classDetailProgramImage} resizeMode="cover" />
               <View style={styles.classDetailProgramCopy}>
                 <Text style={styles.classDetailProgramTitle}>{transaction.title}</Text>
-                <Text style={styles.classDetailLesson}>Lesson 1 of 8</Text>
+                <Text style={styles.classDetailLesson}>{enrollment?.total_lessons?`${enrollment.total_lessons} lessons`:""}</Text>
                 <View style={styles.confirmedMetaRow}>
                   <Feather name="globe" size={14} color="#777777" />
-                  <Text style={styles.confirmedMetaText}>Cantonese</Text>
+                  <Text style={styles.confirmedMetaText}>Language TBC</Text>
                 </View>
                 <View style={styles.confirmedMetaRow}>
                   <Feather name="map-pin" size={14} color="#777777" />
-                  <Text style={styles.confirmedMetaText}>Shop 1B, Class Mall, Central, Hong Kong</Text>
+                  <Text style={styles.confirmedMetaText}>Location TBC</Text>
                 </View>
               </View>
             </View>
@@ -2330,9 +2066,9 @@ function CompletedClassDetailScreen({
             <Pressable
               accessibilityRole="button"
               style={styles.completedRateButton}
-              onPress={() => Alert.alert("Thank you", `Your ${rating}-star review has been submitted.`)}
+              disabled={submitting||submitted||!enrollment} onPress={async()=>{if(!enrollment)return;setSubmitting(true);try{await apiRequest("/student/reviews",{token,method:"POST",body:{enrollment_id:Number(enrollment.id),rating,body:review}});setSubmitted(true);Alert.alert("Thank you","Your review has been saved.")}catch(e){Alert.alert("Review",errorMessage(e))}finally{setSubmitting(false)}}}
             >
-              <Text style={styles.completedRateButtonText}>Rate</Text>
+              <Text style={styles.completedRateButtonText}>{submitted?"Submitted":submitting?"Saving…":"Rate"}</Text>
             </Pressable>
           </View>
 
@@ -2342,16 +2078,18 @@ function CompletedClassDetailScreen({
             <Text style={styles.classDetailSectionTitle}>Hosted by</Text>
             <View style={styles.classDetailPersonRow}>
               <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.classDetailAvatar} resizeMode="cover" />
-              <Text style={styles.classDetailPersonNameFill}>{centre.detailName || centre.name}</Text>
-              <View style={styles.confirmedRating}>
-                <MaterialCommunityIcons name="star" size={16} color="#222222" />
-                <Text style={styles.confirmedRatingText}>{centre.rating.toFixed(2)}</Text>
-              </View>
+              <Text style={styles.classDetailPersonNameFill}>{centre?.detailName || centre?.name || "Centre"}</Text>
+              {centre && centre.rating > 0 ? (
+                <View style={styles.confirmedRating}>
+                  <MaterialCommunityIcons name="star" size={16} color="#222222" />
+                  <Text style={styles.confirmedRatingText}>{centre.rating.toFixed(2)}</Text>
+                </View>
+              ) : null}
             </View>
             <View style={styles.classDetailPersonRow}>
               <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.classDetailAvatar} resizeMode="cover" />
               <View style={styles.classDetailPersonCopy}>
-                <Text style={styles.classDetailPersonName}>Athena Yeung</Text>
+                <Text style={styles.classDetailPersonName}>Coach TBC</Text>
                 <Text style={styles.classDetailPersonRole}>Program Coach</Text>
               </View>
             </View>
@@ -2410,8 +2148,8 @@ function ScheduleClassDetailScreen({
   route: { params: ScheduleClassDetailRouteParams }
   flowAppState: FlowAppState
 }) {
-  const { title, time, date, lesson, image, color, child } = route.params
-  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || flowAppState.centres[0]
+  const { title, time, date, lesson, image, color, child, location, coach } = route.params
+  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || null
   const bookingChild = flowAppState.students.find((item) => item.name === child) || selectedStudentOf(flowAppState)
 
   return (
@@ -2429,17 +2167,14 @@ function ScheduleClassDetailScreen({
               <Text style={styles.classDetailProgramTitle}>{title}</Text>
               <Text style={styles.classDetailLesson}>{lesson}</Text>
               <View style={styles.confirmedMetaRow}>
-                <Feather name="globe" size={14} color="#777777" />
-                <Text style={styles.confirmedMetaText}>Cantonese</Text>
-          </View>
-              <View style={styles.confirmedMetaRow}>
                 <Feather name="map-pin" size={14} color="#777777" />
-                <Text style={styles.confirmedMetaText}>Shop 1B, Class Mall, Central, Hong Kong</Text>
-        </View>
+                <Text style={styles.confirmedMetaText}>{location || "Location TBC"}</Text>
+              </View>
             </View>
           </View>
         </View>
 
+        {route.params.enrollmentId&&<Pressable accessibilityRole="button" style={styles.classDetailVerificationButton} onPress={()=>navigation.navigate("CompletedClassDetailApp",{transactionId:"",enrollmentId:route.params.enrollmentId})}><Text style={styles.classDetailVerificationText}>Rate this program</Text></Pressable>}
         <View style={styles.classDetailVerification}>
           <Text style={styles.classDetailVerificationHint}>Share this code or QR with your child to check in</Text>
           <Pressable
@@ -2457,16 +2192,18 @@ function ScheduleClassDetailScreen({
           <Text style={styles.classDetailSectionTitle}>Hosted by</Text>
           <View style={styles.classDetailPersonRow}>
             <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.classDetailAvatar} resizeMode="cover" />
-            <Text style={styles.classDetailPersonNameFill}>{centre.detailName || centre.name}</Text>
-            <View style={styles.confirmedRating}>
-              <MaterialCommunityIcons name="star" size={16} color="#222222" />
-              <Text style={styles.confirmedRatingText}>{centre.rating.toFixed(2)}</Text>
-            </View>
+            <Text style={styles.classDetailPersonNameFill}>{centre?.detailName || centre?.name || "Centre"}</Text>
+            {centre && centre.rating > 0 ? (
+              <View style={styles.confirmedRating}>
+                <MaterialCommunityIcons name="star" size={16} color="#222222" />
+                <Text style={styles.confirmedRatingText}>{centre.rating.toFixed(2)}</Text>
+              </View>
+            ) : null}
           </View>
           <View style={styles.classDetailPersonRow}>
             <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.classDetailAvatar} resizeMode="cover" />
             <View style={styles.classDetailPersonCopy}>
-              <Text style={styles.classDetailPersonName}>Athena Yeung</Text>
+              <Text style={styles.classDetailPersonName}>{coach || "Coach TBC"}</Text>
               <Text style={styles.classDetailPersonRole}>Program Coach</Text>
             </View>
           </View>
@@ -2521,52 +2258,23 @@ function ScheduleClassDetailScreen({
   )
 }
 
-const QR_GRID_SIZE = 21
-
-function qrCellFilled(row: number, column: number): boolean {
-  const finderOrigins = [[0, 0], [0, QR_GRID_SIZE - 7], [QR_GRID_SIZE - 7, 0]]
-  for (const [originRow, originColumn] of finderOrigins) {
-    const localRow = row - originRow
-    const localColumn = column - originColumn
-    if (localRow >= 0 && localRow < 7 && localColumn >= 0 && localColumn < 7) {
-      return localRow === 0 || localRow === 6 || localColumn === 0 || localColumn === 6
-        || (localRow >= 2 && localRow <= 4 && localColumn >= 2 && localColumn <= 4)
-    }
-  }
-  return (row * 11 + column * 7 + row * column * 3) % 13 < 6
-}
-
-function VerificationQrCode({ onConfirm }: { onConfirm: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Confirm attendance with QR code"
-      style={styles.verificationQr}
-      onPress={onConfirm}
-    >
-      {Array.from({ length: QR_GRID_SIZE * QR_GRID_SIZE }).map((_, index) => {
-        const row = Math.floor(index / QR_GRID_SIZE)
-        const column = index % QR_GRID_SIZE
-        return (
-          <View
-            key={index}
-            style={[styles.verificationQrCell, qrCellFilled(row, column) ? styles.verificationQrCellFilled : null]}
-          />
-        )
-      })}
-    </Pressable>
-  )
-}
-
 function VerificationCodeScreen({
   navigation,
   route,
+  token,
 }: {
+  token: string
   navigation: any
   route: { params: ScheduleClassDetailRouteParams }
 }) {
   const params = route.params
-  const confirmAttendance = () => navigation.replace("AttendanceConfirmedApp", params)
+  const [code,setCode]=useState<{code?:string;expires_at?:string;qr_payload?:string;checked_in?:boolean}|null>(null)
+  const [problem,setProblem]=useState("")
+  const issueCode=async()=>{
+    if(!params.enrollmentId){setProblem("A confirmed enrollment is required before check-in.");return}
+    try{const r=await apiRequest<{data:NonNullable<typeof code>}>("/student/attendance-code",{token,method:"POST",body:{enrollment_id:Number(params.enrollmentId)}});setCode(r.data);setProblem("")}catch(e){setProblem(errorMessage(e))}
+  }
+  useEffect(()=>{void issueCode();if(!params.enrollmentId)return;const timer=setInterval(async()=>{try{const r=await apiRequest<{data:{checked_in:boolean}}>(`/student/attendance/${params.enrollmentId}`,{token});if(r.data.checked_in){clearInterval(timer);navigation.replace("AttendanceConfirmedApp",params)}}catch{}},4000);return()=>clearInterval(timer)},[params.enrollmentId,token])
 
   return (
     <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
@@ -2584,11 +2292,11 @@ function VerificationCodeScreen({
               <Text style={styles.classDetailLesson}>{params.lesson}</Text>
               <View style={styles.confirmedMetaRow}>
                 <Feather name="globe" size={13} color="#777777" />
-                <Text style={styles.confirmedMetaText}>Cantonese</Text>
+                <Text style={styles.confirmedMetaText}>Language TBC</Text>
               </View>
               <View style={styles.confirmedMetaRow}>
                 <Feather name="map-pin" size={13} color="#777777" />
-                <Text style={styles.confirmedMetaText}>Shop 1B, Class Mall, Central, Hong Kong</Text>
+                <Text style={styles.confirmedMetaText}>Location TBC</Text>
               </View>
             </View>
           </View>
@@ -2604,18 +2312,13 @@ function VerificationCodeScreen({
         <View style={styles.reservationDivider} />
 
         <Text style={styles.verificationSectionTitle}>Class code</Text>
-        <Pressable accessibilityRole="button" style={styles.verificationCodeRow} onPress={confirmAttendance}>
-          {["1", "1", "1", "1"].map((digit, index) => (
-            <View key={`${digit}-${index}`} style={styles.verificationCodeBox}>
-              <Text style={styles.verificationCodeDigit}>{digit}</Text>
-            </View>
-          ))}
-        </Pressable>
+        {code?.code?<><View style={styles.verificationCodeRow}>{code.code.split("").map((digit,i)=><View key={i} style={styles.verificationCodeBox}><Text style={styles.verificationCodeDigit}>{digit}</Text></View>)}</View><Text style={styles.verificationReadyText}>Expires at {new Date(code.expires_at!).toLocaleTimeString()}</Text></>:<Text accessibilityRole="alert" style={styles.programListEmpty}>{problem||"Loading your class code…"}</Text>}
+        <Pressable accessibilityRole="button" onPress={issueCode}><Text style={styles.reservationLink}>Refresh code</Text></Pressable>
 
         <View style={styles.reservationDivider} />
 
         <Text style={styles.verificationSectionTitle}>QR code</Text>
-        <VerificationQrCode onConfirm={confirmAttendance} />
+        {code?.qr_payload?<View style={{alignSelf:"center",padding:12}}><QRCode value={code.qr_payload} size={170}/></View>:null}
 
         <View style={styles.reservationDivider} />
 
@@ -2661,8 +2364,8 @@ function AttendanceConfirmedScreen({
   flowAppState: FlowAppState
 }) {
   const params = route.params
-  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || flowAppState.centres[0]
-  const bookingChild = BOOKING_CHILDREN.find((item) => item.name === params.child) || BOOKING_CHILDREN[0]
+  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || null
+  const bookingChild = flowAppState.students.find((item) => item.name === params.child) || selectedStudentOf(flowAppState)
 
   return (
     <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
@@ -2698,11 +2401,11 @@ function AttendanceConfirmedScreen({
               <Text style={styles.classDetailLesson}>{params.lesson}</Text>
               <View style={styles.confirmedMetaRow}>
                 <Feather name="globe" size={13} color="#777777" />
-                <Text style={styles.confirmedMetaText}>Cantonese</Text>
+                <Text style={styles.confirmedMetaText}>Language TBC</Text>
               </View>
               <View style={styles.confirmedMetaRow}>
                 <Feather name="map-pin" size={13} color="#777777" />
-                <Text style={styles.confirmedMetaText}>Shop 1B, Class Mall, Central, Hong Kong</Text>
+                <Text style={styles.confirmedMetaText}>{params.location || "Location TBC"}</Text>
               </View>
             </View>
           </View>
@@ -2714,16 +2417,18 @@ function AttendanceConfirmedScreen({
           <Text style={styles.classDetailSectionTitle}>Hosted by</Text>
           <View style={styles.classDetailPersonRow}>
             <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.classDetailAvatar} resizeMode="cover" />
-            <Text style={styles.classDetailPersonNameFill}>{centre.detailName || centre.name}</Text>
-            <View style={styles.confirmedRating}>
-              <MaterialCommunityIcons name="star" size={16} color="#222222" />
-              <Text style={styles.confirmedRatingText}>{centre.rating.toFixed(2)}</Text>
-            </View>
+            <Text style={styles.classDetailPersonNameFill}>{centre?.detailName || centre?.name || "Centre"}</Text>
+            {centre && centre.rating > 0 ? (
+              <View style={styles.confirmedRating}>
+                <MaterialCommunityIcons name="star" size={16} color="#222222" />
+                <Text style={styles.confirmedRatingText}>{centre.rating.toFixed(2)}</Text>
+              </View>
+            ) : null}
           </View>
           <View style={styles.classDetailPersonRow}>
             <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.classDetailAvatar} resizeMode="cover" />
             <View style={styles.classDetailPersonCopy}>
-              <Text style={styles.classDetailPersonName}>Athena Yeung</Text>
+              <Text style={styles.classDetailPersonName}>{params.coach || "Coach TBC"}</Text>
               <Text style={styles.classDetailPersonRole}>Program Coach</Text>
             </View>
           </View>
@@ -2763,8 +2468,8 @@ const PASSPORT_CARD_ART = {
 } as const
 
 function AnalyticsChildIdentity({ flowAppState, showLevel }: { flowAppState: FlowAppState; showLevel: boolean }) {
-  const selectedStudent = flowAppState.students.find((student) => student.id === flowAppState.selectedStudentId) || flowAppState.students[0]
-  const child = BOOKING_CHILDREN.find((item) => item.id === selectedStudent.id) || BOOKING_CHILDREN[0]
+  const selectedStudent = selectedStudentOf(flowAppState)
+  const child = selectedStudent
   return (
     <View style={styles.analyticsChildIdentity}>
       <Image source={{ uri: child.image }} style={styles.analyticsChildAvatar} resizeMode="cover" />
@@ -2820,8 +2525,8 @@ function AnalyticsTabScreen({
   navigation: any
   flowAppState: FlowAppState
 }) {
-  const selectedStudent = flowAppState.students.find((student) => student.id === flowAppState.selectedStudentId) || flowAppState.students[0]
-  const selectedChild = BOOKING_CHILDREN.find((child) => child.id === selectedStudent.id) || BOOKING_CHILDREN[0]
+  const selectedStudent = selectedStudentOf(flowAppState)
+  const selectedChild = selectedStudent
 
   return (
     <SafeAreaView style={styles.analyticsScreen} edges={["top"]}>
@@ -2910,38 +2615,18 @@ const DASHBOARD_COPY = {
     title: "Academic Dashboard",
     badge: "Early observations",
     badgeStyle: "teal" as const,
-    summary:
-      "Charlie generally approaches activities with good persistence and is increasingly willing to stay with a task when it becomes challenging. He is more confident with familiar activities, while new techniques can still require some guidance",
-    unlock: "More details will be unlocked after 5 records",
-    recordCount: 8,
     recordLabel: "Total academic record",
-    programCount: 32,
     programLabel: "Total academic program",
     recordTitle: "Academic Record",
-    rows: [
-      { name: "S3 Maths Class", date: "Updated 12 May 2025" },
-      { name: "S3 Chinese Class", date: "Updated 11 May 2025" },
-      { name: "Advance English Speaking", date: "Updated 09 May 2025" },
-    ],
     actionTitle: "Work Samples",
   },
   activity: {
     title: "Activity Dashboard",
     badge: "Consistent pattern",
     badgeStyle: "amber" as const,
-    summary:
-      "Charlie generally approaches activities with good persistence and is increasingly willing to stay with a task when it becomes challenging. He is more confident with familiar activities, while new techniques can still require some guidance",
-    unlock: "More details will be unlocked after 5 records",
-    recordCount: 8,
     recordLabel: "Total activity record",
-    programCount: 32,
     programLabel: "Total activity program",
     recordTitle: "Activity Record",
-    rows: [
-      { name: "Guitar Program", date: "Updated 12 May 2025" },
-      { name: "Chess Program", date: "Updated 11 May 2025" },
-      { name: "Badminton Team", date: "Updated 09 May 2025" },
-    ],
     actionTitle: "Moments",
   },
 } as const
@@ -2958,9 +2643,14 @@ function AnalyticsDashboardScreen({
   const isAcademic = mode === "academic"
   const art = DASHBOARD_ART[mode]
   const copy = DASHBOARD_COPY[mode]
-  const selectedStudent = flowAppState.students.find((student) => student.id === flowAppState.selectedStudentId) || flowAppState.students[0]
+  const { learning } = useAccountData()
+  const selectedStudent = selectedStudentOf(flowAppState)
   const firstName = selectedStudent.name.split(" ")[0] || "Your child"
-  const summary = copy.summary.replace(/\bCharlie\b/g, firstName)
+  const lessons = (learning?.lessons || []).filter((lesson) => !lesson.kind || lesson.kind === mode)
+  const summary = lessons.length
+    ? `${firstName} has ${lessons.length} ${mode} program${lessons.length === 1 ? "" : "s"} with learning records from ClassZ centres.`
+    : "Learning records from your centres will show up here. Nothing has been published for this child yet."
+  const recordCount = lessons.reduce((sum, lesson) => sum + (lesson.record_count || 0), 0)
 
   return (
     <SafeAreaView style={styles.analyticsScreen} edges={["top", "bottom"]}>
@@ -2978,39 +2668,42 @@ function AnalyticsDashboardScreen({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Overall Learning Picture"
-          disabled={isAcademic}
           style={styles.dashboardPictureCard}
           onPress={() => {
-            if (!isAcademic) navigation.navigate("ActivityLearningPictureApp")
+            navigation.navigate("ActivityLearningPictureApp",{kind:mode})
           }}
         >
           <View style={styles.dashboardPictureHeader}>
             <View style={styles.dashboardPictureHeaderCopy}>
               <Text style={styles.dashboardPictureTitle}>Overall Learning Picture</Text>
+              {lessons.length > 0 ? (
               <View style={[styles.dashboardBadge, copy.badgeStyle === "amber" ? styles.dashboardBadgeAmber : styles.dashboardBadgeTeal]}>
                 <Text style={[styles.dashboardBadgeText, copy.badgeStyle === "amber" ? styles.dashboardBadgeTextAmber : styles.dashboardBadgeTextTeal]}>
-                  {copy.badge}
+                  {recordCount>=6?"Consistent pattern":recordCount>=3?"Emerging companion":"More observations needed"}
                 </Text>
               </View>
+            ) : null}
             </View>
             <Image source={art.hero} style={styles.dashboardPictureHero} resizeMode="contain" />
           </View>
           <Text style={styles.dashboardPictureText}>{summary}</Text>
-          <Text style={styles.dashboardPictureUnlock}>{copy.unlock}</Text>
+          {lessons.length === 0 ? (
+            <Text style={styles.dashboardPictureUnlock}>More detail appears when your centre publishes learning records.</Text>
+          ) : null}
         </Pressable>
 
         <View style={styles.analyticsMetricRow}>
           <View style={styles.dashboardMetricCard}>
             <View style={styles.dashboardMetricValueRow}>
               <Image source={art.recordIcon} style={styles.dashboardMetricIcon} resizeMode="contain" />
-              <Text style={styles.dashboardMetricValue}>{copy.recordCount}</Text>
+              <Text style={styles.dashboardMetricValue}>{recordCount}</Text>
             </View>
             <Text style={styles.dashboardMetricLabel}>{copy.recordLabel}</Text>
           </View>
           <View style={styles.dashboardMetricCard}>
             <View style={styles.dashboardMetricValueRow}>
               <Image source={art.programIcon} style={styles.dashboardMetricIcon} resizeMode="contain" />
-              <Text style={styles.dashboardMetricValue}>{copy.programCount}</Text>
+              <Text style={styles.dashboardMetricValue}>{lessons.length}</Text>
             </View>
             <Text style={styles.dashboardMetricLabel}>{copy.programLabel}</Text>
           </View>
@@ -3027,10 +2720,12 @@ function AnalyticsDashboardScreen({
             <Image source={art.records} style={styles.dashboardRecordArt} resizeMode="contain" />
           </View>
           <View style={styles.dashboardRecordRows}>
-            {copy.rows.map((row) => (
-              <View key={`${row.name}-${row.date}`} style={styles.dashboardRecordRow}>
-                <Text style={styles.dashboardRecordName} numberOfLines={1}>{row.name}</Text>
-                <Text style={styles.dashboardRecordDate}>{row.date}</Text>
+            {lessons.length === 0 ? (
+              <Text style={styles.dashboardRecordDate}>No records yet.</Text>
+            ) : lessons.slice(0, 6).map((row) => (
+              <View key={row.id} style={styles.dashboardRecordRow}>
+                <Text style={styles.dashboardRecordName} numberOfLines={1}>{row.title}</Text>
+                <Text style={styles.dashboardRecordDate}>{row.latest_at ? formatScheduleDate(row.latest_at) : row.center_name || ""}</Text>
               </View>
             ))}
           </View>
@@ -3052,45 +2747,20 @@ function AnalyticsDashboardScreen({
   )
 }
 
-const ACTIVITY_INSIGHTS = [
-  {
-    title: "Stronger Areas",
-    art: require("./assets/figma/analytics/activity-stronger.png") as number,
-    items: [
-      { title: "Focus & Persistence", body: "Charlie has repeatedly stayed engaged with activities and continued trying when a task became more difficult." },
-      { title: "Independent Trying", body: "In familiar situations, Charlie is increasingly willing to begin and work through parts of the activity independently." },
-    ],
-  },
-  {
-    title: "Areas Needing More Support",
-    art: null,
-    items: [
-      { title: "Technique & Control", body: "Charlie sometimes needs guidance when learning a new technique or when more precise control is required." },
-      { title: "Confidence with New Tasks", body: "When an activity feels unfamiliar, Charlie can benefit from some initial support before trying it independently." },
-    ],
-  },
-  {
-    title: "Differences Across Programmes",
-    art: require("./assets/figma/analytics/activity-differences.png") as number,
-    items: [
-      { title: "Guitar", body: "Charlie tends to work patiently through practice activities, although unfamiliar chord changes can require guidance." },
-      { title: "Chess", body: "He appears more independent when thinking through familiar problem-solving steps." },
-      { title: "Badminton", body: "Charlie engages actively, while consistent technique and control can require more support." },
-    ],
-  },
-  {
-    title: "What Seems to Help Across Programmes",
-    art: require("./assets/figma/analytics/activity-help.png") as number,
-    items: [
-      { title: "Short prompts and clear demonstrations", body: "Brief prompts and demonstrations have helped Charlie understand what to do next and continue with the activity." },
-    ],
-  },
-]
-
-function ActivityLearningPictureScreen({ navigation, flowAppState }: { navigation: any; flowAppState: FlowAppState }) {
-  const selectedStudent = flowAppState.students.find((student) => student.id === flowAppState.selectedStudentId) || flowAppState.students[0]
+function ActivityLearningPictureScreen({ navigation, route, flowAppState }: { navigation: any; route?:{params?:{kind?:"academic"|"activity"}}; flowAppState: FlowAppState }) {
+  const { learning } = useAccountData()
+  const selectedStudent = selectedStudentOf(flowAppState)
   const firstName = selectedStudent.name.split(" ")[0] || "Your child"
-  const summary = DASHBOARD_COPY.activity.summary.replace(/\bCharlie\b/g, firstName)
+  const summary = learning?.companion?.primary_companion
+    ? `${firstName}'s learning companion is ${learning.companion.primary_companion}.`
+    : "An overall learning picture will appear after your centre adds learning records."
+  const insightSections = [
+    ...(learning?.differences || []).filter(item=>!route?.params?.kind||!item.kind||item.kind===route.params.kind).map((item) => ({
+      title: item.program,
+      body: [...(item.repeated_strength || []), ...(item.repeated_support || [])].join("\n") || "No repeated pattern published yet.",
+    })),
+    ...(learning?.help || []).map((item) => ({ title: "What seems to help", body: item })),
+  ]
 
   return (
     <SafeAreaView style={styles.analyticsScreen} edges={["top", "bottom"]}>
@@ -3098,7 +2768,7 @@ function ActivityLearningPictureScreen({ navigation, flowAppState }: { navigatio
         <Pressable accessibilityRole="button" accessibilityLabel="Back" style={styles.analyticsDashboardBack} onPress={() => navigation.goBack()}>
           <Feather name="chevron-left" size={22} color="#858585" />
         </Pressable>
-        <Text style={styles.analyticsDashboardHeaderTitle}>Activity Dashboard</Text>
+        <Text style={styles.analyticsDashboardHeaderTitle}>{route?.params?.kind==="academic"?"Academic Dashboard":"Activity Dashboard"}</Text>
         <View style={styles.analyticsDashboardHeaderSpacer} />
       </View>
       <ScrollView style={styles.page} contentContainerStyle={styles.analyticsDashboardContent} showsVerticalScrollIndicator={false}>
@@ -3107,28 +2777,22 @@ function ActivityLearningPictureScreen({ navigation, flowAppState }: { navigatio
           <View style={styles.dashboardPictureHeader}>
             <View style={styles.dashboardPictureHeaderCopy}>
               <Text style={styles.dashboardPictureTitle}>Overall Learning Picture</Text>
-              <View style={[styles.dashboardBadge, styles.dashboardBadgeAmber]}>
-                <Text style={[styles.dashboardBadgeText, styles.dashboardBadgeTextAmber]}>Consistent pattern</Text>
-              </View>
+              {learning?.companion?.primary_companion ? (
+                <View style={[styles.dashboardBadge, styles.dashboardBadgeAmber]}>
+                  <Text style={[styles.dashboardBadgeText, styles.dashboardBadgeTextAmber]}>{learning.companion.primary_companion}</Text>
+                </View>
+              ) : null}
             </View>
             <Image source={DASHBOARD_ART.activity.hero} style={styles.dashboardPictureHero} resizeMode="contain" />
           </View>
           <Text style={styles.dashboardPictureText}>{summary}</Text>
         </View>
-        {ACTIVITY_INSIGHTS.map((section) => (
-          <View key={section.title} style={styles.activityInsightCard}>
-            <View style={styles.activityInsightHeader}>
-              <Text style={styles.activityInsightTitle}>{section.title}</Text>
-              {section.art ? <Image source={section.art} style={styles.activityInsightArt} resizeMode="contain" /> : null}
-            </View>
-            <View style={styles.activityInsightItems}>
-              {section.items.map((item) => (
-                <View key={item.title} style={styles.activityInsightItem}>
-                  <Text style={styles.activityInsightItemTitle}>{item.title}</Text>
-                  <Text style={styles.activityInsightItemBody}>{item.body.replace(/\bCharlie\b/g, firstName)}</Text>
-                </View>
-              ))}
-            </View>
+        {insightSections.length === 0 ? (
+          <Text style={styles.programListEmpty}>No cross-program insights yet.</Text>
+        ) : insightSections.map((section) => (
+          <View key={section.title + section.body} style={styles.activityInsightCard}>
+            <Text style={styles.activityInsightTitle}>{section.title}</Text>
+            <Text style={styles.activityInsightItemBody}>{section.body}</Text>
           </View>
         ))}
       </ScrollView>
@@ -4147,52 +3811,93 @@ function AddChildProfileScreen({ navigation, session }: { navigation: any; sessi
   )
 }
 
-function FavouriteScreen({ navigation }: { navigation: any }) {
-  const [favourites, setFavourites] = useState(["favourite-1", "favourite-2"])
+function FavouriteScreen({
+  navigation,
+  flowAppState,
+  setFlowAppState,
+}: {
+  navigation: any
+  flowAppState: FlowAppState
+  setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
+}) {
+  const { favourites, favouritesAvailable, toggleFavourite } = useAccountData()
+  const cards: {
+    key: string
+    title: string
+    meta: string
+    image?: string | null
+    sen: boolean
+    type: "centre" | "course"
+    id: number
+    centreId: string
+  }[] = favourites.flatMap((item): {
+    key: string
+    title: string
+    meta: string
+    image?: string | null
+    sen: boolean
+    type: "centre" | "course"
+    id: number
+    centreId: string
+  }[] => {
+    if (item.item_type === "centre") {
+      const centre = flowAppState.centres.find((row) => row.id === String(item.item_id))
+      if (!centre) return []
+      return [{ key: `centre-${centre.id}`, title: centre.name, meta: centre.location, image: centre.imageUrl, sen: centre.supportsSen, type: "centre" as const, id: item.item_id, centreId: centre.id }]
+    }
+    const program = flowAppState.programs.find((row) => row.id === String(item.item_id))
+    if (!program) return []
+    return [{ key: `course-${program.id}`, title: program.title, meta: program.location, image: program.imageUrl, sen: false, type: "course" as const, id: item.item_id, centreId: program.centreId || "" }]
+  })
 
   return (
     <SafeAreaView style={styles.profileScreen} edges={["top", "bottom"]}>
       <ProfileFlowHeader navigation={navigation} title="Favourite" />
       <ScrollView style={styles.page} contentContainerStyle={styles.favouriteContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.favouriteFilter}>Filter</Text>
-        {["favourite-1", "favourite-2"].map((id) => {
-          const liked = favourites.includes(id)
-          return (
-            <Pressable key={id} style={styles.favouriteCard} onPress={() => navigation.navigate("CentreDetailApp")}>
-              <View style={styles.favouriteImageWrap}>
-                <Image source={{ uri: FIGMA_ASSETS.main.recommend2 }} style={styles.favouriteImage} resizeMode="cover" />
+        {!favouritesAvailable ? (
+          <Text style={styles.programListEmpty}>Saving favourites isn't available yet.</Text>
+        ) : cards.length === 0 ? (
+          <Text style={styles.programListEmpty}>You have not saved any centres or programs yet.</Text>
+        ) : cards.map((card) => (
+          <Pressable
+            key={card.key}
+            style={styles.favouriteCard}
+            onPress={() => {
+              setFlowAppState((prev) => ({
+                ...prev,
+                selectedCentreId: card.centreId || prev.selectedCentreId,
+                selectedProgramId: card.type === "course" ? String(card.id) : prev.selectedProgramId,
+              }))
+              navigation.navigate(card.type === "course" ? "ClassOptionApp" : "CentreDetailApp")
+            }}
+          >
+            <View style={styles.favouriteImageWrap}>
+              <Image source={card.image ? { uri: card.image } : { uri: FIGMA_ASSETS.main.recommend2 }} style={styles.favouriteImage} resizeMode="cover" />
+              {card.sen ? (
                 <View style={styles.favouriteSenBadge}>
                   <Feather name="check-circle" size={12} color="#222222" />
                   <Text style={styles.favouriteSenText}>SEN</Text>
                 </View>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={liked ? "Remove favourite" : "Add favourite"}
-                  hitSlop={8}
-                  style={styles.favouriteHeart}
-                  onPress={(event) => {
-                    event.stopPropagation()
-                    setFavourites((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
-                  }}
-                >
-                  <MaterialCommunityIcons name={liked ? "heart" : "heart-outline"} size={24} color="#FFFFFF" />
-                </Pressable>
-              </View>
-              <View style={styles.favouriteCardBody}>
-                <View style={styles.favouriteCardTitleRow}>
-                  <Text style={styles.favouriteCardTitle}>ClassZ Playgroup Centre</Text>
-                  <View style={styles.favouriteRating}>
-                    <MaterialCommunityIcons name="star" size={15} color="#222222" />
-                    <Text style={styles.favouriteRatingText}>4.91</Text>
-                  </View>
-                </View>
-                <Text style={styles.favouriteMeta}>
-                  <Text style={styles.favouritePrice}>$299</Text> lesson · Causeway Bay
-                </Text>
-              </View>
-            </Pressable>
-          )
-        })}
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Remove favourite"
+                hitSlop={8}
+                style={styles.favouriteHeart}
+                onPress={(event) => {
+                  event.stopPropagation()
+                  toggleFavourite(card.type, card.id).catch((err) => Alert.alert("Favourites", errorMessage(err)))
+                }}
+              >
+                <MaterialCommunityIcons name="heart" size={24} color="#FFFFFF" />
+              </Pressable>
+            </View>
+            <View style={styles.favouriteCardBody}>
+              <Text style={styles.favouriteCardTitle}>{card.title}</Text>
+              <Text style={styles.favouriteMeta}>{card.meta}</Text>
+            </View>
+          </Pressable>
+        ))}
       </ScrollView>
       <View style={styles.favouriteBottomNav}>
         {([
@@ -4229,27 +3934,21 @@ function ReservationAppScreen({
   flowAppState: FlowAppState
   setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
 }) {
-  const active = flowAppState.programs.find((p) => p.id === flowAppState.selectedProgramId) || flowAppState.programs[0]
-  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || flowAppState.centres[0]
+  const active = flowAppState.programs.find((p) => p.id === flowAppState.selectedProgramId) || null
+  const centre = flowAppState.centres.find((item) => item.id === (active?.centreId || flowAppState.selectedCentreId)) || null
   const student = selectedStudentOf(flowAppState)
   const selectedBookingChild = student
-  const schedule = route.params?.schedule ?? buildProgramSchedule(
-    active,
-    0,
-    "Oct 23 - Nov 28",
-    active.price === 299 ? 399 : null,
-    4,
-    3,
-  )
   const { account, classes, refresh } = useAccountData()
+  const schedule = route.params?.schedule || (active ? schedulesForProgram(active, classes)[0] : undefined)
   const [datesExpanded, setDatesExpanded] = useState(false)
   const [reserving, setReserving] = useState(false)
-  const lessonCount = schedule.lessonCount
-  const lessonTotal = schedule.price * lessonCount
-  const limitedDiscount = schedule.originalPrice ? (schedule.originalPrice - schedule.price) * lessonCount : 0
-  const platformFee = 5
-  const promoteDiscount = flowAppState.couponCode.trim() ? 60 : 0
-  const total = (schedule.originalPrice ?? schedule.price) * lessonCount + platformFee - promoteDiscount
+  const lessonCount = schedule?.lessonCount || 0
+  const lessonTotal = (schedule?.price || 0) * lessonCount
+  const limitedDiscount = schedule?.originalPrice ? (schedule.originalPrice - schedule.price) * lessonCount : 0
+  const platformFee = schedule ? 5 : 0
+  // The centre confirms enrollment and any applicable discount before charging.
+  const promoteDiscount = 0
+  const total = schedule ? (schedule.originalPrice ?? schedule.price) * lessonCount + platformFee - promoteDiscount : 0
   const attendeeAvatars = [
     FIGMA_ASSETS.reservation.host,
     FIGMA_ASSETS.reservation.coach,
@@ -4257,6 +3956,15 @@ function ReservationAppScreen({
   ]
 
   const appliedPromoteCode = flowAppState.couponCode.trim()
+
+  if (!active || !centre || !schedule) {
+    return (
+      <SafeAreaView style={styles.classOptionScreen} edges={["top", "bottom"]}>
+        <ProfileFlowHeader navigation={navigation} title="Reservation" />
+        <Text style={styles.programListEmpty}>Choose a published class time before reserving.</Text>
+      </SafeAreaView>
+    )
+  }
 
   return (
     <SafeAreaView style={styles.classOptionScreen} edges={["top", "bottom"]}>
@@ -4330,10 +4038,12 @@ function ReservationAppScreen({
             <View style={styles.reservationHostCopy}>
               <Text style={styles.reservationPersonName}>{centre.detailName || centre.name}</Text>
             </View>
-            <View style={styles.reservationRating}>
-              <MaterialCommunityIcons name="star" size={16} color="#222222" />
-              <Text style={styles.reservationRatingText}>{centre.rating.toFixed(2)}</Text>
-            </View>
+            {centre.rating > 0 ? (
+              <View style={styles.reservationRating}>
+                <MaterialCommunityIcons name="star" size={16} color="#222222" />
+                <Text style={styles.reservationRatingText}>{centre.rating.toFixed(2)}</Text>
+              </View>
+            ) : null}
           </View>
           <View style={styles.reservationPersonRow}>
             <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.reservationPersonImage} resizeMode="cover" />
@@ -4435,23 +4145,7 @@ function ReservationAppScreen({
             })
             setReserving(true)
             try {
-              await apiRequest("/trial-application", {
-                token: session.token,
-                method: "POST",
-                body: {
-                  courseId: Number(active.id),
-                  ...(matchedClass ? { classId: matchedClass.id } : {}),
-                  ...(active.programCode ? { programCode: active.programCode } : {}),
-                  fullName: student.name,
-                  profileId: Number(student.id),
-                  email: session.user.email,
-                  contactNumber: student.phone || account?.mobile || "",
-                  countryCode: account?.country_code || "+852",
-                  parentsName: account?.name || account?.full_name || session.user.name,
-                  dateOfBirth: student.dateOfBirth,
-                  language: "en",
-                },
-              })
+              await apiRequest("/student/enrollment-requests",{token:session.token,method:"POST",body:{profile_id:Number(student.id),class_ids:schedule.classIds,coupon_code:flowAppState.couponCode||undefined}})
               const booking = {
                 id: `b${Date.now()}`,
                 programId: active.id,
@@ -4527,8 +4221,8 @@ function ReservationConfirmedScreen({
   route: { params: { schedule: ClassScheduleOption; total: number } }
   flowAppState: FlowAppState
 }) {
-  const active = flowAppState.programs.find((item) => item.id === flowAppState.selectedProgramId) || flowAppState.programs[0]
-  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || flowAppState.centres[0]
+  const active = flowAppState.programs.find((item) => item.id === flowAppState.selectedProgramId) || null
+  const centre = flowAppState.centres.find((item) => item.id === flowAppState.selectedCentreId) || null
   const student = selectedStudentOf(flowAppState)
   const selectedBookingChild = student
   const { schedule, total } = route.params
@@ -4554,9 +4248,8 @@ function ReservationConfirmedScreen({
 
         <View style={styles.confirmedDivider} />
 
-        <Text style={styles.confirmedTitle}>
-          Your reservation has been{"\n"}confirmed successfully!
-        </Text>
+        <Text style={styles.confirmedTitle}>Your booking request has been{"\n"}sent to the centre!</Text>
+        <Text style={styles.confirmedPrompt}>Your centre will confirm your place and payment. No payment has been taken.</Text>
 
         <View style={styles.confirmedProgramCard}>
           <Image
@@ -4565,7 +4258,7 @@ function ReservationConfirmedScreen({
             resizeMode="cover"
           />
           <View style={styles.confirmedProgramCopy}>
-            <Text style={styles.confirmedProgramTitle}>{active.title}</Text>
+            <Text style={styles.confirmedProgramTitle}>{active?.title || "Program"}</Text>
             <View style={styles.confirmedMetaRow}>
               <Feather name="globe" size={14} color="#777777" />
               <Text style={styles.confirmedMetaText}>{schedule.language}</Text>
@@ -4583,11 +4276,13 @@ function ReservationConfirmedScreen({
           <Text style={styles.confirmedSectionTitle}>Hosted by</Text>
           <View style={styles.confirmedPersonRow}>
             <Image source={{ uri: FIGMA_ASSETS.reservation.host }} style={styles.confirmedAvatar} resizeMode="cover" />
-            <Text style={styles.confirmedPersonNameFill}>{centre.detailName || centre.name}</Text>
-            <View style={styles.confirmedRating}>
-              <MaterialCommunityIcons name="star" size={16} color="#222222" />
-              <Text style={styles.confirmedRatingText}>{centre.rating.toFixed(2)}</Text>
-            </View>
+            <Text style={styles.confirmedPersonNameFill}>{centre?.detailName || centre?.name || "Centre"}</Text>
+            {centre && centre.rating > 0 ? (
+              <View style={styles.confirmedRating}>
+                <MaterialCommunityIcons name="star" size={16} color="#222222" />
+                <Text style={styles.confirmedRatingText}>{centre.rating.toFixed(2)}</Text>
+              </View>
+            ) : null}
           </View>
           <View style={styles.confirmedPersonRow}>
             <Image source={{ uri: FIGMA_ASSETS.reservation.coach }} style={styles.confirmedAvatar} resizeMode="cover" />
@@ -4632,35 +4327,6 @@ function ReservationConfirmedScreen({
     </SafeAreaView>
   )
 }
-
-const BOOKING_CHILDREN = [
-  {
-    id: "s1",
-    name: "Charlie Wong",
-    level: "Beginner",
-    years: 2,
-    connected: true,
-    age: 6,
-    sen: true,
-    image: FIGMA_ASSETS.reservation.child,
-    imageScale: 1,
-    imageOffsetY: 0,
-  },
-  {
-    id: "s4",
-    name: "Joseph Wong",
-    level: "Achiever",
-    years: 2,
-    connected: false,
-    age: 6,
-    sen: true,
-    image: Asset.fromModule(require("./assets/mobile/profile/joseph-avatar.png")).uri,
-    imageScale: 1,
-    imageOffsetY: 0,
-  },
-] as const
-
-const PROMOTE_VOUCHERS = ["voucher-1", "voucher-2", "voucher-3", "voucher-4"] as const
 
 const PROMOTE_TERMS = [
   "The voucher can be applied to enrollment of $220 or more.",
@@ -4758,19 +4424,71 @@ function SelectChildScreen({
   )
 }
 
+type ApiCoupon = {
+  id?: number | string
+  code?: string
+  title?: string
+  amount?: number | string
+  min_spend?: number | string
+  expires_at?: string | null
+}
+
 function PromoteCodeScreen({
   navigation,
+  session,
   setFlowAppState,
 }: {
   navigation: any
+  session: Session
   setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
 }) {
   const [code, setCode] = useState("")
   const [termsOpen, setTermsOpen] = useState(false)
+  const [coupons, setCoupons] = useState<ApiCoupon[]>([])
+  const [available, setAvailable] = useState(true)
+  const [busy, setBusy] = useState(false)
 
-  const applyVoucher = (nextCode: string) => {
-    setFlowAppState((prev) => ({ ...prev, couponCode: nextCode.trim().toUpperCase() }))
-    navigation.goBack()
+  useEffect(() => {
+    let cancelled = false
+    apiRequest<{ data: ApiCoupon[] }>("/student/coupons", { token: session.token })
+      .then((res) => {
+        if (!cancelled) setCoupons(res.data || [])
+      })
+      .catch((err) => {
+        if (cancelled) return
+        if (isMissingRoute(err)) setAvailable(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [session.token])
+
+  const claimCode = async (nextCode: string) => {
+    const trimmed = nextCode.trim()
+    if (!trimmed || busy) return
+    if (!available) {
+      Alert.alert("Promote code", "Coupons aren't available yet.")
+      return
+    }
+    setBusy(true)
+    try {
+      await apiRequest("/student/coupons/claim", {
+        token: session.token,
+        method: "POST",
+        body: { code: trimmed },
+      })
+      setFlowAppState((prev) => ({ ...prev, couponCode: trimmed.toUpperCase() }))
+      navigation.goBack()
+    } catch (err) {
+      if (isMissingRoute(err)) {
+        setAvailable(false)
+        Alert.alert("Promote code", "Coupons aren't available yet.")
+      } else {
+        Alert.alert("Promote code", errorMessage(err))
+      }
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -4793,35 +4511,40 @@ function PromoteCodeScreen({
             autoCapitalize="characters"
             autoCorrect={false}
           />
-          <Pressable accessibilityRole="button" accessibilityLabel="Redeem promote code" hitSlop={8} onPress={() => code.trim() && applyVoucher(code.trim())}>
-            <Text style={styles.promoteRedeem}>Redeem</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Redeem promote code" hitSlop={8} onPress={() => claimCode(code)}>
+            <Text style={styles.promoteRedeem}>{busy ? "..." : "Redeem"}</Text>
           </Pressable>
         </View>
-        {PROMOTE_VOUCHERS.map((voucherId) => (
-          <View key={voucherId} style={styles.promoteCard}>
-            <View style={styles.promoteCardHeader}>
-              <View style={styles.promoteOfferRow}>
-                <View style={styles.promoteTicketIcon}>
-                  <MaterialCommunityIcons name="percent" size={12} color="#FFFFFF" />
+        {!available ? (
+          <Text style={styles.programListEmpty}>Coupons aren't available yet.</Text>
+        ) : coupons.length === 0 ? (
+          <Text style={styles.programListEmpty}>You don't have any coupons yet.</Text>
+        ) : coupons.map((coupon) => {
+          const label = coupon.title || coupon.code || "Coupon"
+          const amount = coupon.amount != null && coupon.amount !== "" ? String(coupon.amount) : ""
+          return (
+            <View key={String(coupon.id || coupon.code)} style={styles.promoteCard}>
+              <View style={styles.promoteCardHeader}>
+                <Text style={styles.promoteOffer}>{amount ? `${amount} off` : label}</Text>
+                {coupon.expires_at ? <Text style={styles.promoteExpiry}>Until {formatScheduleDate(coupon.expires_at)}</Text> : null}
+              </View>
+              <View style={styles.promoteCardBody}>
+                <View style={styles.promoteCardCopy}>
+                  {coupon.min_spend != null && coupon.min_spend !== "" ? <Text style={styles.promoteSpend}>Min. spend ${coupon.min_spend}</Text> : null}
+                  <Pressable accessibilityRole="button" accessibilityLabel="Coupon terms" style={styles.promoteCentresRow} onPress={() => setTermsOpen(true)}>
+                    <Text style={styles.promoteCentres}>Terms of use</Text>
+                    <Feather name="chevron-down" size={14} color="#8A8A8A" />
+                  </Pressable>
                 </View>
-                <Text style={styles.promoteOffer}>$60 OFF</Text>
+                {coupon.code ? (
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Use ${coupon.code}`} style={styles.promoteUseButton} onPress={() => claimCode(coupon.code || "")}>
+                    <Text style={styles.promoteUseText}>Use</Text>
+                  </Pressable>
+                ) : null}
               </View>
-              <Text style={styles.promoteExpiry}>Until Mar 04, 2026</Text>
             </View>
-            <View style={styles.promoteCardBody}>
-              <View style={styles.promoteCardCopy}>
-                <Text style={styles.promoteSpend}>Min. spend $300</Text>
-                <Pressable accessibilityRole="button" accessibilityLabel="Selected centres only" style={styles.promoteCentresRow} onPress={() => setTermsOpen(true)}>
-                  <Text style={styles.promoteCentres}>Selected centres only</Text>
-                  <Feather name="chevron-down" size={14} color="#8A8A8A" />
-                </Pressable>
-              </View>
-              <Pressable accessibilityRole="button" accessibilityLabel="Use $60 off voucher" style={styles.promoteUseButton} onPress={() => applyVoucher("LOYAL2026")}>
-                <Text style={styles.promoteUseText}>Use</Text>
-              </Pressable>
-            </View>
-          </View>
-        ))}
+          )
+        })}
       </ScrollView>
       <Modal visible={termsOpen} transparent animationType="slide" onRequestClose={() => setTermsOpen(false)}>
         <View style={styles.promoteSheetRoot}>
@@ -4831,13 +4554,6 @@ function PromoteCodeScreen({
               <Feather name="x" size={16} color="#777777" />
             </Pressable>
             <Text style={styles.promoteSheetTitle}>Terms of use</Text>
-            <View style={styles.promoteOfferRow}>
-              <MaterialCommunityIcons name="ticket-confirmation-outline" size={18} color="#0ABAB5" />
-              <Text style={styles.promoteOffer}>$60 OFF</Text>
-            </View>
-            <Text style={styles.promoteSheetMeta}>Min. spend $300</Text>
-            <Text style={styles.promoteSheetMeta}>Selected centres only</Text>
-            <Text style={styles.promoteSheetMeta}>Expires on Mar 04, 2026</Text>
             <View style={styles.promoteTerms}>
               {PROMOTE_TERMS.map((term) => (
                 <View key={term} style={styles.promoteTermRow}>
@@ -4865,60 +4581,41 @@ function LearningRecordsAppScreen({
   flowAppState: FlowAppState
   setFlowAppState: React.Dispatch<React.SetStateAction<FlowAppState>>
 }) {
-  const selected = flowAppState.students.find((s) => s.id === flowAppState.selectedStudentId) || flowAppState.students[0]
-  const count = flowAppState.learningRecords[selected.id] || 0
-  const canGenerate = count >= 3
+  const { learning } = useAccountData()
+  const selected = selectedStudentOf(flowAppState)
+  const lessons = learning?.lessons || []
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <ScrollView style={styles.page} contentContainerStyle={styles.pageContent}>
         <Text style={styles.pageTitle}>Learning Records</Text>
-        {flowAppState.students.map((s) => {
-        const c = flowAppState.learningRecords[s.id] || 0
-        return (
+        {flowAppState.students.length === 0 ? (
+          <Text style={styles.cardMeta}>Child profiles appear after the centre publishes them.</Text>
+        ) : flowAppState.students.map((s) => (
           <Pressable
             key={s.id}
             style={[styles.card, styles.elevatedCard, s.id === selected.id ? styles.cardActive : null]}
             onPress={() => setFlowAppState((prev) => ({ ...prev, selectedStudentId: s.id }))}
           >
             <View style={styles.profileHeader}>
-              <Image source={{ uri: FIGMA_ASSETS.reservation.child }} style={styles.profileAvatarSmall} />
+              <Image source={{ uri: s.image }} style={styles.profileAvatarSmall} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{s.name}</Text>
-                <Text style={styles.cardMeta}>{s.parent} · {s.phone}</Text>
+                <Text style={styles.cardMeta}>{s.parent}{s.phone ? ` · ${s.phone}` : ""}</Text>
               </View>
             </View>
-            <Text style={styles.cardMeta}>{c}/3 records</Text>
           </Pressable>
-        )
-        })}
-        <Pressable
-          style={styles.primaryButton}
-          onPress={() =>
-            setFlowAppState((prev) => ({
-              ...prev,
-              learningRecords: {
-                ...prev.learningRecords,
-                [selected.id]: (prev.learningRecords[selected.id] || 0) + 1,
-              },
-            }))
-          }
-        >
-          <Text style={styles.primaryButtonText}>Add Learning Record</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.primaryButton, !canGenerate ? styles.primaryDisabledMain : null]}
-          disabled={!canGenerate}
-          onPress={() => {
-            const animals: Array<"Rabbit" | "Owl" | "Dolphin" | "Turtle" | "Fox" | "Bee"> = ["Rabbit", "Owl", "Dolphin", "Turtle", "Fox", "Bee"]
-            const pick = animals[(flowAppState.learningRecords[selected.id] || 0) % animals.length]
-            setFlowAppState((prev) => ({
-              ...prev,
-              generatedCompanions: { ...prev.generatedCompanions, [selected.id]: pick },
-            }))
-            navigation.navigate("CompanionApp")
-          }}
-        >
-          <Text style={styles.primaryButtonText}>{canGenerate ? "Generate Learning Companion" : `Need ${3 - count} more records`}</Text>
+        ))}
+        {lessons.length === 0 ? (
+          <Text style={styles.cardMeta}>Learning records from your centres will show up here.</Text>
+        ) : lessons.map((lesson) => (
+          <View key={lesson.id} style={[styles.card, styles.elevatedCard]}>
+            <Text style={styles.cardTitle}>{lesson.title}</Text>
+            <Text style={styles.cardMeta}>{lesson.center_name || lesson.location || ""}</Text>
+            <Text style={styles.cardMeta}>{lesson.record_count ? `${lesson.record_count} records` : lesson.latest_at ? formatScheduleDate(lesson.latest_at) : ""}</Text>
+          </View>
+        ))}
+        <Pressable style={styles.primaryButton} onPress={() => navigation.navigate("CompanionApp")}>
+          <Text style={styles.primaryButtonText}>Learning Companion</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -4937,7 +4634,10 @@ function InboxAppScreen({
   const t = tInbox(locale)
   const [query, setQuery] = useState("")
   const [showArchived, setShowArchived] = useState(false)
-  const [threads, setThreads] = useState<InboxThread[]>(() => INBOX_THREADS.map((thread) => ({ ...thread })))
+  const {inbox,updateThread}=useAccountData()
+  const [threads,setThreads]=useState<InboxThread[]>([])
+  useEffect(()=>setThreads(inbox),[inbox])
+  const persistThread=(id:string,change:Record<string,boolean>)=>updateThread(id,change).catch(e=>Alert.alert("Messages",errorMessage(e)))
   const swipeableRefs = useRef<Record<string, Swipeable | null>>({})
 
   const archivedThreads = threads.filter((thread) => thread.archived)
@@ -4992,6 +4692,8 @@ function InboxAppScreen({
   }
 
   function togglePin(threadId: string) {
+    const current=threads.find(t=>t.id===threadId)
+    if(current)void persistThread(threadId,{pinned:!current.pinned})
     setThreads((prev) => {
       const target = prev.find((item) => item.id === threadId)
       if (!target) return prev
@@ -5009,6 +4711,7 @@ function InboxAppScreen({
   }
 
   function archiveThread(threadId: string) {
+    void persistThread(threadId,{archived:true,pinned:false})
     setThreads((prev) =>
       prev.map((item) => (item.id === threadId ? { ...item, archived: true, pinned: false } : item)),
     )
@@ -5016,6 +4719,7 @@ function InboxAppScreen({
   }
 
   function unarchiveThread(threadId: string) {
+    void persistThread(threadId,{archived:false})
     setThreads((prev) =>
       prev.map((item) => (item.id === threadId ? { ...item, archived: false } : item)),
     )
@@ -5023,6 +4727,7 @@ function InboxAppScreen({
   }
 
   function deleteThread(threadId: string) {
+    void persistThread(threadId,{hidden:true})
     setThreads((prev) => prev.filter((item) => item.id !== threadId))
   }
 
@@ -5175,23 +4880,17 @@ function InboxMessageAppScreen({
   locale: AppLocale
 }) {
   const t = tInbox(locale)
-  const thread = findInboxThread(route.params.threadId)
+  const {inbox,getMessages,sendMessage:sendToCentre,updateThread}=useAccountData()
+  const thread=inbox.find(t=>t.id===route.params.threadId)
   const [draft, setDraft] = useState("")
-  const [messages, setMessages] = useState<InboxChatMessage[]>(() => getInboxMessages(route.params.threadId))
+  const [messages, setMessages] = useState<InboxChatMessage[]>([])
+  useEffect(()=>{let active=true;const load=()=>getMessages(route.params.threadId).then(items=>{if(active)setMessages(items)}).catch(e=>{if(active)Alert.alert("Messages",errorMessage(e))});void load();void updateThread(route.params.threadId,{read:true});const timer=setInterval(load,15000);return()=>{active=false;clearInterval(timer)}},[route.params.threadId,getMessages])
   const chatListRef = useRef<ScrollView>(null)
 
-  function sendMessage() {
-    const text = draft.trim()
-    if (!text) return
-    const now = new Date()
-    const hh = String(now.getHours()).padStart(2, "0")
-    const mm = String(now.getMinutes()).padStart(2, "0")
-    setMessages((prev) => [
-      ...prev,
-      { id: `local-${Date.now()}`, from: "me", text, time: `${hh}:${mm}` },
-    ])
-    setDraft("")
-    requestAnimationFrame(() => chatListRef.current?.scrollToEnd({ animated: true }))
+  const [sending,setSending]=useState(false)
+  async function sendMessage() {
+    const text=draft.trim();if(!text||sending)return;setSending(true)
+    try{await sendToCentre(route.params.threadId,text);setMessages(await getMessages(route.params.threadId));setDraft("");chatListRef.current?.scrollToEnd({animated:true})}catch(e){Alert.alert("Messages",errorMessage(e))}finally{setSending(false)}
   }
 
   if (!thread) {
@@ -5284,14 +4983,20 @@ function InboxMessageAppScreen({
 
 function NotificationAppScreen({ locale }: { locale: AppLocale }) {
   const t = tNotification(locale)
-  const [items, setItems] = useState(() => getNotificationsLatestFirst())
+  const { notifications, classNotices, readIds,markRead:persistRead } = useAccountData()
+  const items = getNotificationsLatestFirst(
+    [...notifications, ...classNotices].map((row, index) => {
+      const item = noticeToNotification(row, index)
+      return readIds.includes(item.id) ? { ...item, unread: false } : item
+    }),
+  )
 
   function categoryLabel(item: ClassNotification) {
     return item.category === "account" ? t.account : t.classUpdate
   }
 
   function markRead(id: string) {
-    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, unread: false } : n)))
+    void persistRead(id).catch(e=>Alert.alert("Notifications",errorMessage(e)))
   }
 
   return (
@@ -5683,7 +5388,7 @@ function LearningRecordPreview({ compact }: { compact?: boolean }) {
           <Text style={styles.previewStatLabel}>Completed</Text>
         </View>
       </View>
-      {["Charlie Wong", "Sophie Chan", "Leo Ng"].slice(0, compact ? 2 : 3).map((x) => (
+      {["Child profile", "Child profile 2", "Child profile 3"].slice(0, compact ? 2 : 3).map((x) => (
         <View key={x} style={styles.previewListRow}>
           <Text style={styles.previewHeroTitle}>{x}</Text>
           <Text style={styles.previewMeta}>2/3 records</Text>
@@ -6079,9 +5784,9 @@ export default function App() {
             </Stack.Screen>
           </Stack.Navigator>
         ) : (
-          <AccountDataProvider token={session.token} setFlowAppState={setFlowAppState}>
+          <AccountDataProvider token={session.token} selectedProfileId={flowAppState.selectedStudentId} setFlowAppState={setFlowAppState}>
           <Stack.Navigator
-            initialRouteName={session.user.role === "coach" ? "CoachApp" : "AppTabs"}
+            initialRouteName={["coach", "center_admin"].includes(session.user.role) ? "CoachApp" : "AppTabs"}
             screenOptions={({ navigation, route }) => ({
               headerBackVisible: false,
               headerLeft:
@@ -6134,7 +5839,7 @@ export default function App() {
               {(props) => <ReviewScreen {...props} flowAppState={flowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="MemberProfileApp" options={{ headerShown: false }}>
-              {(props) => <MemberProfileScreen {...props} />}
+              {(props) => <MemberProfileScreen {...props} flowAppState={flowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="ProgramListApp" options={{ headerShown: false }}>
               {(props) => (
@@ -6164,7 +5869,7 @@ export default function App() {
               {(props) => <SelectChildScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="PromoteCodeApp" options={{ headerShown: false }}>
-              {(props) => <PromoteCodeScreen {...props} setFlowAppState={setFlowAppState} />}
+              {(props) => <PromoteCodeScreen {...props} session={session} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="PersonalSettingApp" options={{ headerShown: false }}>
               {(props) => <PersonalSettingScreen {...props} session={session} onSessionChange={signIn} />}
@@ -6194,7 +5899,7 @@ export default function App() {
               {(props) => <AddChildProfileScreen {...props} session={session} />}
             </Stack.Screen>
             <Stack.Screen name="FavouriteApp" options={{ headerShown: false }}>
-              {(props) => <FavouriteScreen {...props} />}
+              {(props) => <FavouriteScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="TransactionsApp" options={{ headerShown: false }}>
               {(props) => <TransactionsScreen {...props} />}
@@ -6203,13 +5908,13 @@ export default function App() {
               {(props) => <TransactionDetailScreen {...props} flowAppState={flowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="CompletedClassDetailApp" options={{ headerShown: false }}>
-              {(props) => <CompletedClassDetailScreen {...props} flowAppState={flowAppState} />}
+              {(props) => <CompletedClassDetailScreen {...props} token={session.token} flowAppState={flowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="ScheduleClassDetailApp" options={{ headerShown: false }}>
               {(props) => <ScheduleClassDetailScreen {...props} flowAppState={flowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="VerificationCodeApp" options={{ headerShown: false }}>
-              {(props) => <VerificationCodeScreen {...props} />}
+              {(props) => <VerificationCodeScreen {...props} token={session.token} />}
             </Stack.Screen>
             <Stack.Screen name="AttendanceConfirmedApp" options={{ headerShown: false }}>
               {(props) => <AttendanceConfirmedScreen {...props} flowAppState={flowAppState} />}
@@ -6233,7 +5938,7 @@ export default function App() {
               {(props) => <LearningRecordsAppScreen {...props} flowAppState={flowAppState} setFlowAppState={setFlowAppState} />}
             </Stack.Screen>
             <Stack.Screen name="CompanionApp" options={{ headerShown: false }}>
-              {(props) => <LearningCompanionScreen {...props} childName={(flowAppState.students.find((student) => student.id === flowAppState.selectedStudentId) || flowAppState.students[0]).name} animal={flowAppState.generatedCompanions[flowAppState.selectedStudentId]} />}
+              {(props) => <LearningCompanionScreen {...props} childName={selectedStudentOf(flowAppState).name} />}
             </Stack.Screen>
             <Stack.Screen name="InboxApp" options={{ title: tInbox(locale).title }}>
               {(props) => <InboxAppScreen {...props} locale={locale} />}

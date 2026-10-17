@@ -9,8 +9,22 @@ export type Program = {
   title: string
   category: string
   location: string
+  venue?: string
   price: number
   rating: number
+  intro?: string
+  instructor?: string
+  language?: string
+  ageTag?: string
+  imageUrl?: string | null
+  courseType?: string
+}
+
+export type CentreMember = {
+  id: string
+  name: string
+  role: string
+  photoUrl: string | null
 }
 
 export type Centre = {
@@ -20,11 +34,15 @@ export type Centre = {
   categories: string[]
   location: string
   address: string
+  description?: string
   priceFrom: number
   rating: number
   reviewCount: number
   supportsSen: boolean
   imageIndex: number
+  imageUrl?: string | null
+  features?: string[]
+  members?: CentreMember[]
 }
 
 type Booking = {
@@ -96,25 +114,12 @@ export type FlowAppState = {
 
 export function createInitialFlowAppState(): FlowAppState {
   return {
-    programs: [
-      { id: "p1", title: "ClassZ Guitar Program", category: "Music", location: "Central", price: 299, rating: 4.91 },
-      { id: "p2", title: "Junior STEM Explorer", category: "STEM", location: "Causeway Bay", price: 320, rating: 4.88 },
-      { id: "p3", title: "Creative Art Lab", category: "Art", location: "Tsim Sha Tsui", price: 280, rating: 4.72 },
-      { id: "p4", title: "Academic Focus Class", category: "Academic", location: "Mong Kok", price: 340, rating: 4.85 },
-    ],
-    centres: [
-      { id: "c1", name: "ClassZ Playgroup Centre", detailName: "ClassZ Playgroup Bright Kids Drawing Centre", categories: ["Music"], location: "Causeway Bay", address: "Shop 18, Class Mall, Central, Hong Kong", priceFrom: 299, rating: 4.91, reviewCount: 50, supportsSen: true, imageIndex: 0 },
-      { id: "c2", name: "Harmony Music Academy", categories: ["Music"], location: "Central", address: "28 Queen's Road Central, Hong Kong", priceFrom: 360, rating: 4.85, reviewCount: 38, supportsSen: false, imageIndex: 1 },
-      { id: "c3", name: "ClassZ STEM Lab", categories: ["STEM"], location: "Causeway Bay", address: "88 Hennessy Road, Causeway Bay", priceFrom: 320, rating: 4.88, reviewCount: 44, supportsSen: true, imageIndex: 1 },
-      { id: "c4", name: "ClassZ Art Studio", categories: ["Art"], location: "Tsim Sha Tsui", address: "18 Cameron Road, Tsim Sha Tsui", priceFrom: 280, rating: 4.72, reviewCount: 31, supportsSen: true, imageIndex: 0 },
-      { id: "c5", name: "Active Kids Sports Centre", categories: ["Sports"], location: "Tai Po", address: "12 On Pong Road, Tai Po", priceFrom: 260, rating: 4.79, reviewCount: 27, supportsSen: false, imageIndex: 1 },
-      { id: "c6", name: "Bright Path Learning Centre", categories: ["Academic"], location: "Mong Kok", address: "700 Nathan Road, Mong Kok", priceFrom: 340, rating: 4.85, reviewCount: 42, supportsSen: true, imageIndex: 0 },
-      { id: "c7", name: "Creative Horizons Centre", categories: ["Others"], location: "Tsuen Wan", address: "8 Yeung Uk Road, Tsuen Wan", priceFrom: 250, rating: 4.68, reviewCount: 19, supportsSen: false, imageIndex: 1 },
-    ],
+    programs: [],
+    centres: [],
     searchQuery: "",
     selectedCategory: null,
-    selectedProgramId: "p1",
-    selectedCentreId: "c1",
+    selectedProgramId: "",
+    selectedCentreId: "",
     couponCode: "",
     bookings: [],
     students: [],
@@ -244,54 +249,29 @@ function SearchFeature({
 
 function ReservationFeature({
   state,
-  setState,
-  onGoToFlowName,
 }: {
   state: FlowAppState
-  setState: React.Dispatch<React.SetStateAction<FlowAppState>>
+  setState?: React.Dispatch<React.SetStateAction<FlowAppState>>
   onGoToFlowName?: (name: string) => void
 }) {
   const active = state.programs.find((p) => p.id === state.selectedProgramId) || state.programs[0]
-  const lessonCount = 8
-  const discount = state.couponCode.trim().toUpperCase() === "SAVE800" ? 800 : 0
-  const total = active.price * lessonCount - discount + 5
+  if (!active) {
+    return (
+      <View style={styles.wrap}>
+        <Text style={styles.title}>Reservation Feature</Text>
+        <Text style={styles.text}>Choose a published program before reserving.</Text>
+      </View>
+    )
+  }
 
   return (
     <View style={styles.wrap}>
       <Text style={styles.title}>Reservation Feature</Text>
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{active.title}</Text>
-        <Text style={styles.text}>{lessonCount} lessons · Oct 23 - Nov 28</Text>
+        <Text style={styles.text}>${active.price} per lesson</Text>
       </View>
-      <TextInput
-        value={state.couponCode}
-        onChangeText={(t) => setState((prev) => ({ ...prev, couponCode: t }))}
-        placeholder="Coupon code (try SAVE800)"
-        style={styles.input}
-      />
-      <View style={styles.card}>
-        <Text style={styles.text}>Lesson fee: ${active.price * lessonCount}</Text>
-        <Text style={styles.text}>Discount: -${discount}</Text>
-        <Text style={styles.text}>Platform fee: $5</Text>
-        <Text style={styles.cardTitle}>Total: ${total}</Text>
-      </View>
-      <Pressable
-        style={styles.primary}
-        onPress={() => {
-          const booking: Booking = {
-            id: `b${Date.now()}`,
-            programId: active.id,
-            title: active.title,
-            lessonCount,
-            dateRange: "Oct 23 - Nov 28",
-            total,
-          }
-          setState((prev) => ({ ...prev, bookings: [booking, ...prev.bookings] }))
-          onGoToFlowName?.("Schedule all")
-        }}
-      >
-        <Text style={styles.primaryText}>Reserve & Go Schedule</Text>
-      </Pressable>
+      <Text style={styles.text}>Checkout from the class screen. This preview does not place a booking.</Text>
     </View>
   )
 }
@@ -315,103 +295,41 @@ function ScheduleFeature({ state }: { state: FlowAppState }) {
 function LearningRecordFeature({
   state,
   setState,
-  onGoToFlowName,
 }: {
   state: FlowAppState
   setState: React.Dispatch<React.SetStateAction<FlowAppState>>
   onGoToFlowName?: (name: string) => void
 }) {
   const selected = selectedStudentOf(state)
-  const recordCount = state.learningRecords[selected.id] || 0
-  const canGenerate = recordCount >= 3
-
-  function generateCompanionFor(studentId: string) {
-    const animals: Companion[] = ["Rabbit", "Owl", "Dolphin", "Turtle", "Fox", "Bee"]
-    const idx = (state.learningRecords[studentId] || 0) % animals.length
-    const pick = animals[idx]
-    setState((prev) => ({
-      ...prev,
-      generatedCompanions: { ...prev.generatedCompanions, [studentId]: pick },
-    }))
-  }
 
   return (
     <View style={styles.wrap}>
       <Text style={styles.title}>Learning Record Feature</Text>
-      {state.students.map((s) => {
-        const count = state.learningRecords[s.id] || 0
-        return (
-          <Pressable key={s.id} style={[styles.card, s.id === selected.id ? styles.cardActive : null]} onPress={() => setState((prev) => ({ ...prev, selectedStudentId: s.id }))}>
-            <Text style={styles.cardTitle}>{s.name}</Text>
-            <Text style={styles.text}>{s.parent} · {s.phone}</Text>
-            <Text style={styles.text}>Records: {count}/3+</Text>
-          </Pressable>
-        )
-      })}
-      <Pressable
-        style={styles.primary}
-        onPress={() =>
-          setState((prev) => ({
-            ...prev,
-            learningRecords: {
-              ...prev.learningRecords,
-              [selected.id]: (prev.learningRecords[selected.id] || 0) + 1,
-            },
-          }))
-        }
-      >
-        <Text style={styles.primaryText}>Add 1 Learning Record</Text>
-      </Pressable>
-      <Pressable
-        style={[styles.primary, !canGenerate ? styles.primaryDisabled : null]}
-        disabled={!canGenerate}
-        onPress={() => {
-          generateCompanionFor(selected.id)
-          onGoToFlowName?.("Learning Companion")
-        }}
-      >
-        <Text style={styles.primaryText}>{canGenerate ? "Generate Learning Companion" : `Need ${3 - recordCount} more records`}</Text>
-      </Pressable>
+      {state.students.length === 0 ? <Text style={styles.text}>Child profiles appear after the centre publishes them.</Text> : null}
+      {state.students.map((s) => (
+        <Pressable key={s.id} style={[styles.card, s.id === selected.id ? styles.cardActive : null]} onPress={() => setState((prev) => ({ ...prev, selectedStudentId: s.id }))}>
+          <Text style={styles.cardTitle}>{s.name}</Text>
+          <Text style={styles.text}>{s.parent}{s.phone ? ` · ${s.phone}` : ""}</Text>
+        </Pressable>
+      ))}
+      <Text style={styles.text}>Learning records are published by the centre. This preview cannot add them.</Text>
     </View>
   )
 }
 
 function CompanionFeature({
   state,
-  setState,
 }: {
   state: FlowAppState
-  setState: React.Dispatch<React.SetStateAction<FlowAppState>>
+  setState?: React.Dispatch<React.SetStateAction<FlowAppState>>
 }) {
   const selected = selectedStudentOf(state)
-  const animal = state.generatedCompanions[selected.id] || "Rabbit"
-  const allAnimals: Companion[] = ["Rabbit", "Owl", "Dolphin", "Turtle", "Fox", "Bee"]
+  const animal = state.generatedCompanions[selected.id]
   return (
     <View style={styles.wrap}>
       <Text style={styles.title}>Learning Companion Feature</Text>
       <Text style={styles.text}>Student: {selected.name}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={styles.row}>
-          {allAnimals.map((a) => (
-            <Pressable
-              key={a}
-              style={[styles.chip, a === animal ? styles.chipActive : null]}
-              onPress={() =>
-                setState((prev) => ({
-                  ...prev,
-                  generatedCompanions: { ...prev.generatedCompanions, [selected.id]: a },
-                }))
-              }
-            >
-              <Text style={styles.chipText}>{a}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </ScrollView>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>{animal} Companion</Text>
-        <Text style={styles.text}>What may help · Why we think this · Supporting companion · Next steps</Text>
-      </View>
+      <Text style={styles.text}>{animal ? `${animal} companion` : "A learning companion appears after your centre publishes records."}</Text>
     </View>
   )
 }

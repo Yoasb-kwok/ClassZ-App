@@ -13,6 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Feather from "@expo/vector-icons/Feather"
 import { SvgXml } from "react-native-svg"
+import { apiRequest, errorMessage } from "./api"
 import { LOGIN_SVGS } from "./login-svgs"
 import { REGISTER_SVGS } from "./register-svgs"
 
@@ -210,7 +211,7 @@ export function LoginFormScreen({
       if (role === "user" && ["platform_admin", "center_admin", "coach"].includes(userRole)) {
         throw new Error("This account belongs to coach/centre portal.")
       }
-      if (role === "coach" && userRole !== "coach") {
+      if (role === "coach" && !["coach","center_admin"].includes(userRole)) {
         throw new Error("This account is not a coach account.")
       }
       if (role === "centre" && !["platform_admin", "center_admin"].includes(userRole)) {
@@ -271,17 +272,6 @@ export function LoginFormScreen({
               Register
             </Text>
           </Text>
-          <View style={styles.hintBox}>
-            <Text style={styles.hintTitle}>Test login</Text>
-            {role === "centre" ? (
-              <Text style={styles.hintLine}>centre@classzcentre.demo</Text>
-            ) : role === "coach" ? (
-              <Text style={styles.hintLine}>test@coach.com</Text>
-            ) : (
-              <Text style={styles.hintLine}>parent+91234567@classzcentre.local</Text>
-            )}
-            <Text style={styles.hintPwd}>Password: 111111</Text>
-          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -374,6 +364,10 @@ export function RegisterFormScreen({
   const [hidePassword, setHidePassword] = useState(true)
   const [hideConfirm, setHideConfirm] = useState(true)
   const [agreed, setAgreed] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState("")
+  const [verificationEmail,setVerificationEmail]=useState("")
+  const [otp,setOtp]=useState("")
 
   const checks = useMemo(() => {
     const hasLen = password.length >= 8
@@ -481,6 +475,8 @@ export function RegisterFormScreen({
             {confirm.length > 0 && !checks.match ? (
               <Text style={styles.errorText}>Passwords do not match.</Text>
             ) : null}
+            {verificationEmail===email.trim().toLowerCase()&&<><AuthField label="Verification code" value={otp} onChangeText={v=>setOtp(v.replace(/\D/g,"").slice(0,6))} placeholder="6-digit email code"/><Pressable accessibilityRole="button" onPress={async()=>{try{await apiRequest("/user/register/request-otp",{method:"POST",body:{email:email.trim(),language:"en"}})}catch(e){setError(errorMessage(e))}}}><Text style={styles.termsLink}>Send again</Text></Pressable></>}
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <Pressable style={styles.termsRow} onPress={() => setAgreed((v) => !v)}>
               <View style={[styles.termsCheck, agreed ? styles.termsCheckActive : null]}>
@@ -497,16 +493,44 @@ export function RegisterFormScreen({
 
       <View style={[styles.registerFormFooter, { paddingBottom: Math.max(insets.bottom, 24) }]}>
         <Pressable
-          style={[styles.nextBtn, canNext ? styles.primaryBtn : styles.nextBtnDisabled]}
-          disabled={!canNext}
-          onPress={() =>
-            accountType === "coach"
-              ? navigation.navigate("CoachSetup", { email: email.trim() })
-              : navigation.navigate("Login", { role: accountType === "parent" ? "user" : accountType })
-          }
+          style={[styles.nextBtn, canNext && !busy ? styles.primaryBtn : styles.nextBtnDisabled]}
+          disabled={!canNext || busy}
+          onPress={async () => {
+            setError("")
+            if (accountType === "centre") {
+              // TODO(backend): POST /public/centers/register needs centre name, district, category, and mobile.
+              // Those fields are not on this screen, and centre CRM stays on the website.
+              setError("Centre accounts are created on the ClassZ website. This app is for parents and students.")
+              return
+            }
+            setBusy(true)
+            try {
+              if(verificationEmail!==email.trim().toLowerCase()){
+                await apiRequest("/user/register/request-otp",{method:"POST",body:{email:email.trim(),language:"en"}})
+                setVerificationEmail(email.trim().toLowerCase());setOtp("");return
+              }
+              if(!/^\d{6}$/.test(otp))throw new Error("Enter the six-digit verification code from your email.")
+              const localName = email.trim().split("@")[0] || "Parent"
+              await apiRequest("/user/register", {
+                method: "POST",
+                body: {
+                  email: email.trim(),
+                  mobile_registration:true,otp,
+                  password,
+                  fullName: localName,
+                  role: accountType === "coach" ? "coach" : "student",
+                },
+              })
+              navigation.navigate("Login", { role: accountType === "coach" ? "coach" : "user" })
+            } catch (err) {
+              setError(errorMessage(err, "Registration failed."))
+            } finally {
+              setBusy(false)
+            }
+          }}
         >
-          <Text style={[styles.nextBtnText, canNext ? styles.primaryBtnText : styles.nextBtnTextDisabled]}>
-            Next
+          <Text style={[styles.nextBtnText, canNext && !busy ? styles.primaryBtnText : styles.nextBtnTextDisabled]}>
+            {busy ? "Please wait…" : verificationEmail===email.trim().toLowerCase()?"Verify and create account":"Next"}
           </Text>
         </Pressable>
       </View>
@@ -514,31 +538,21 @@ export function RegisterFormScreen({
   )
 }
 
-export function ForgotPasswordScreen({
-  route,
-  navigation,
-}: {
-  route: { params: { role: AuthRole } }
-  navigation: any
-}) {
-  const [email, setEmail] = useState("")
-  return (
-    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
-      <View style={styles.loginTopBar}>
-        <AuthBackButton onPress={() => navigation.goBack()} />
-      </View>
-      <View style={styles.forgotWrap}>
-        <Text style={styles.loginTitle}>Forgot password</Text>
-        <Text style={styles.registerWelcomeSub}>
-          Enter your email and we’ll send reset instructions.
-        </Text>
-        <AuthField label="Email" value={email} onChangeText={setEmail} placeholder="Email Address" />
-        <Pressable style={styles.primaryBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.primaryBtnText}>Send reset link</Text>
-        </Pressable>
-      </View>
-    </SafeAreaView>
-  )
+export function ForgotPasswordScreen({route,navigation}:{route:{params:{role:AuthRole}};navigation:any}) {
+  const [step,setStep]=useState<"email"|"verify"|"reset">("email")
+  const [email,setEmail]=useState(""),[otp,setOtp]=useState(""),[password,setPassword]=useState(""),[confirm,setConfirm]=useState("")
+  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[message,setMessage]=useState("")
+  const sendCode=async()=>{await apiRequest("/user/forgot-password",{method:"POST",body:{email:email.trim(),language:"en"}});setStep("verify");setMessage("Enter the six-digit code from your email.")}
+  const submit=async()=>{if(busy)return;setBusy(true);setError("");try{
+    if(step==="email")await sendCode()
+    else if(step==="verify"){await apiRequest("/user/verify-otp",{method:"POST",body:{email:email.trim(),otp}});setStep("reset");setMessage("")}
+    else{if(password.length<8||!/[A-Z]/.test(password)||!/\d/.test(password))throw new Error("Use at least 8 characters, one uppercase letter and one number.");if(password!==confirm)throw new Error("Passwords do not match.");await apiRequest("/user/reset-password",{method:"POST",body:{email:email.trim(),otp,newPassword:password,confirmPassword:confirm}});navigation.navigate("Login",{role:route.params.role})}
+  }catch(e){setError(errorMessage(e))}finally{setBusy(false)}}
+  return <SafeAreaView style={styles.screen} edges={["top","bottom"]}><View style={styles.loginTopBar}><AuthBackButton onPress={()=>step==="email"?navigation.goBack():setStep(step==="reset"?"verify":"email")}/></View><ScrollView contentContainerStyle={styles.forgotWrap} keyboardShouldPersistTaps="handled"><Text style={styles.loginTitle}>{step==="email"?"Forgot password":step==="verify"?"Verification":"Reset password"}</Text>
+    {step==="email"?<AuthField label="Email" value={email} onChangeText={setEmail} placeholder="Email Address"/>:step==="verify"?<><AuthField label="Verification code" value={otp} onChangeText={v=>setOtp(v.replace(/\D/g,"").slice(0,6))} placeholder="6-digit code"/><Pressable accessibilityRole="button" disabled={busy} onPress={async()=>{try{await sendCode()}catch(e){setError(errorMessage(e))}}}><Text style={styles.termsLink}>Send again</Text></Pressable></>:<><AuthField label="Password" value={password} onChangeText={setPassword} placeholder="Enter your new password" secureTextEntry/><AuthField label="Confirm password" value={confirm} onChangeText={setConfirm} placeholder="Confirm your new password" secureTextEntry/></>}
+    {!!message&&<Text style={styles.registerWelcomeSub}>{message}</Text>}{!!error&&<Text accessibilityRole="alert" style={styles.errorText}>{error}</Text>}
+    <Pressable accessibilityRole="button" style={[styles.primaryBtn,busy&&styles.btnDisabled]} disabled={busy} onPress={submit}>{busy?<ActivityIndicator color="#fff"/>:<Text style={styles.primaryBtnText}>{step==="email"?"Submit":step==="verify"?"Verify":"Confirm"}</Text>}</Pressable>
+  </ScrollView></SafeAreaView>
 }
 
 const styles = StyleSheet.create({
