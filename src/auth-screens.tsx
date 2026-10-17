@@ -276,7 +276,7 @@ export function LoginFormScreen({
             {role === "centre" ? (
               <Text style={styles.hintLine}>centre@classzcentre.demo</Text>
             ) : role === "coach" ? (
-              <Text style={styles.hintLine}>teacher1@classzcentre.demo</Text>
+              <Text style={styles.hintLine}>test@coach.com</Text>
             ) : (
               <Text style={styles.hintLine}>parent+91234567@classzcentre.local</Text>
             )}
@@ -500,7 +500,9 @@ export function RegisterFormScreen({
           style={[styles.nextBtn, canNext ? styles.primaryBtn : styles.nextBtnDisabled]}
           disabled={!canNext}
           onPress={() =>
-            navigation.navigate("Login", { role: accountType === "parent" ? "user" : accountType })
+            accountType === "coach"
+              ? navigation.navigate("CoachSetup", { email: email.trim() })
+              : navigation.navigate("Login", { role: accountType === "parent" ? "user" : accountType })
           }
         >
           <Text style={[styles.nextBtnText, canNext ? styles.primaryBtnText : styles.nextBtnTextDisabled]}>

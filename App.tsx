@@ -59,6 +59,7 @@ import {
   type AuthRole,
 } from "./src/auth-screens"
 import { LOGIN_SVGS } from "./src/login-svgs"
+import { CoachFlow } from "./src/coach-screens"
 import { FONT } from "./src/typography"
 import { LOCALE_LABELS, nextLocale, tInbox, tMain, tNotification, tSearch, type AppLocale } from "./src/i18n"
 import { getNotificationsLatestFirst, type ClassNotification } from "./src/notifications"
@@ -92,6 +93,8 @@ type RootStackParamList = {
   RegisterAccountType: { role?: AuthRole } | undefined
   RegisterForm: { accountType: "parent" | "coach" | "centre" }
   ForgotPassword: { role: AuthRole }
+  CoachSetup: { email?: string } | undefined
+  CoachApp: undefined
   AppTabs: undefined
   CentreDetailApp: undefined
   ReviewApp: undefined
@@ -6064,10 +6067,21 @@ export default function App() {
             <Stack.Screen name="ForgotPassword">
               {(props) => <ForgotPasswordScreen {...props} />}
             </Stack.Screen>
+            <Stack.Screen name="CoachSetup">
+              {({ navigation, route }) => (
+                <CoachFlow
+                  start="register"
+                  email={route.params?.email}
+                  onExit={() => navigation.goBack()}
+                  onSettings={() => navigation.navigate("Login", { role: "coach" })}
+                />
+              )}
+            </Stack.Screen>
           </Stack.Navigator>
         ) : (
           <AccountDataProvider token={session.token} setFlowAppState={setFlowAppState}>
           <Stack.Navigator
+            initialRouteName={session.user.role === "coach" ? "CoachApp" : "AppTabs"}
             screenOptions={({ navigation, route }) => ({
               headerBackVisible: false,
               headerLeft:
@@ -6080,6 +6094,21 @@ export default function App() {
                     ),
             })}
           >
+            <Stack.Screen name="CoachApp" options={{ headerShown: false }}>
+              {() => (
+                <CoachFlow
+                  start="home"
+                  name={session.user.name}
+                  email={session.user.email}
+                  onSettings={() =>
+                    Alert.alert("Settings", session.user.email, [
+                      { text: "Cancel", style: "cancel" },
+                      { text: "Sign out", style: "destructive", onPress: signOut },
+                    ])
+                  }
+                />
+              )}
+            </Stack.Screen>
             <Stack.Screen name="AppTabs" options={{ headerShown: false }}>
               {() => (
                 <AppTabs
